@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ui.js - Presentation & DOM Rendering Components
  */
 
@@ -58,19 +58,19 @@ export function renderDossier(data) {
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div class="p-4 rounded-xl bg-slate-950/60 border border-slate-800">
           <h4 class="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 font-mono">
-            <span>✓ Key Decisions Confirmed</span>
+            <span>âœ“ Key Decisions Confirmed</span>
           </h4>
           <ul class="text-xs text-slate-300 space-y-1.5 font-mono">
-            ${s.key_decisions.map(d => `<li class="flex items-start gap-1.5"><span class="text-emerald-400">•</span><span>${d}</span></li>`).join('')}
+            ${s.key_decisions.map(d => `<li class="flex items-start gap-1.5"><span class="text-emerald-400">â€¢</span><span>${d}</span></li>`).join('')}
           </ul>
         </div>
 
         <div class="p-4 rounded-xl bg-slate-950/60 border border-slate-800">
           <h4 class="text-xs font-bold text-amber-400 uppercase tracking-wider mb-2 flex items-center gap-1.5 font-mono">
-            <span>⚠️ Identified Risks & Blockers</span>
+            <span>âš ï¸ Identified Risks & Blockers</span>
           </h4>
           <ul class="text-xs text-slate-300 space-y-1.5 font-mono">
-            ${s.risks_and_blockers.map(r => `<li class="flex items-start gap-1.5"><span class="text-amber-400">•</span><span>${r}</span></li>`).join('')}
+            ${s.risks_and_blockers.map(r => `<li class="flex items-start gap-1.5"><span class="text-amber-400">â€¢</span><span>${r}</span></li>`).join('')}
           </ul>
         </div>
       </div>
@@ -139,4 +139,65 @@ export function renderQueryResult(data) {
     score.innerText = `${Math.round(data.relevance_top * 100)}% Match`;
     answer.innerText = data.answer;
   }
+}
+
+// â”€â”€â”€ Agent Pipeline Live Visualization â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+
+const AGENT_LABELS = {
+  MemoryAgent:          { icon: 'ðŸ—„ï¸', label: 'Qdrant Memory Agent',       color: 'cyan' },
+  ActionExtractor:      { icon: 'ðŸŽ¯', label: 'Lyzr Action Extractor',     color: 'amber' },
+  ExecutiveSynthesizer: { icon: 'ðŸ§ ', label: 'Lyzr Executive Synthesizer', color: 'indigo' },
+  TaskDispatcher:       { icon: 'ðŸ“¬', label: 'Lyzr Task Dispatcher',       color: 'emerald' }
+};
+const AGENT_ORDER = ['MemoryAgent', 'ActionExtractor', 'ExecutiveSynthesizer', 'TaskDispatcher'];
+
+export function showPipelinePanel() {
+  const panel = document.getElementById('pipeline-panel');
+  if (!panel) return;
+  panel.classList.remove('hidden');
+
+  // Reset all rows to pending
+  AGENT_ORDER.forEach(agent => {
+    const row = document.getElementById(`pipeline-row-${agent}`);
+    if (!row) return;
+    const { color } = AGENT_LABELS[agent];
+    row.innerHTML = _agentRow(agent, 'pending', '');
+  });
+}
+
+export function updatePipelineAgent(event) {
+  const { agent, status, message, count } = event;
+  const row = document.getElementById(`pipeline-row-${agent}`);
+  if (!row) return;
+  row.innerHTML = _agentRow(agent, status, message, count);
+}
+
+function _agentRow(agent, status, message, count) {
+  const { icon, label, color } = AGENT_LABELS[agent] || { icon: 'âš™ï¸', label: agent, color: 'slate' };
+
+  const statusIcon = status === 'running'
+    ? `<span class="w-2 h-2 rounded-full bg-${color}-400 animate-ping inline-block"></span>`
+    : status === 'done'
+    ? `<span class="text-emerald-400 font-bold">âœ“</span>`
+    : `<span class="w-2 h-2 rounded-full bg-slate-700 inline-block"></span>`;
+
+  const countBadge = (status === 'done' && count !== undefined)
+    ? `<span class="ml-auto px-2 py-0.5 rounded-full text-[10px] font-mono bg-${color}-500/20 text-${color}-300 border border-${color}-500/30">${count}</span>`
+    : '';
+
+  const msgEl = message
+    ? `<p class="text-[10px] text-slate-500 font-mono mt-0.5">${message}</p>`
+    : '';
+
+  return `
+    <div class="flex items-start gap-2.5">
+      <div class="mt-0.5 flex-shrink-0">${statusIcon}</div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-semibold text-slate-200">${icon} ${label}</span>
+          ${countBadge}
+        </div>
+        ${msgEl}
+      </div>
+    </div>`;
 }
