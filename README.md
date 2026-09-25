@@ -91,6 +91,14 @@ Navigate to `http://localhost:8000`.
 
 ---
 
+### Option 3: Vercel Cloud Serverless Deployment
+OmiMind is natively configured for Vercel with zero cold-start dependencies:
+1. Fork or import this repository on [Vercel](https://vercel.com/new).
+2. Root Directory: `./` (Vercel automatically detects `vercel.json` and `@vercel/python`).
+3. Deploy! Both the frontend and ASGI serverless backend will be live instantly.
+
+---
+
 ## 💼 Pre-Set Enterprise Scenarios
 
 1. **Executive Q4 AI Infrastructure & Budget Review (`q4_strategy`)**:

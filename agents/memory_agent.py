@@ -50,7 +50,12 @@ def generate_semantic_embedding(text: str, dim: int = VECTOR_DIM) -> List[float]
 
 class QdrantMemoryAgent:
     def __init__(self, storage_path: str = "./qdrant_storage"):
-        # Uses embedded on-disk persistent Qdrant or in-memory fallback
+        # In serverless environments (Vercel, AWS Lambda), current working directory is read-only.
+        # Fallback cleanly to /tmp or in-memory mode.
+        is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
+        if is_serverless:
+            storage_path = "/tmp/qdrant_storage"
+
         try:
             self.client = QdrantClient(path=storage_path)
         except Exception:
