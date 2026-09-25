@@ -6,6 +6,9 @@
 [![Qdrant Vector DB](https://img.shields.io/badge/Qdrant-Vector%20Memory-red.svg)](https://qdrant.tech)
 [![Lyzr Multi-Agent](https://img.shields.io/badge/Lyzr-Multi--Agent%20Swarm-emerald.svg)](https://lyzr.ai)
 [![Hackathon: Stop Prompting](https://img.shields.io/badge/HiDevs%20Hackathon-Track%201%3A%20Meeting%20Intelligence-orange.svg)](https://app.hidevs.xyz/hackathons/stop-prompting-solo-agents-hackathon-2026)
+[![Live Demo](https://img.shields.io/badge/Live%20Demo-omimind--agent.vercel.app-brightgreen.svg)](https://omimind-agent.vercel.app/)
+
+> 🌐 **Live Demo:** [https://omimind-agent.vercel.app/](https://omimind-agent.vercel.app/)
 
 An autonomous, memory-backed executive assistant built for the **Omi AI Wearable**. OmiMind continuously ingests ambient meeting conversations, lectures, and voice memos, indexes them into **Qdrant Vector Database** for instant semantic recall, and orchestrates a **Lyzr Multi-Agent Swarm** that autonomously extracts commitments, synthesizes executive dossiers, and dispatches actionable Jira tickets and follow-up emails.
 

@@ -30,15 +30,30 @@ class LyzrExecutiveSynthesizer:
         for line in transcript_lines[:6]:
             key_topics.append(line.get("text", ""))
 
+        # Dynamic executive summary built from actual meeting content
+        decision_count = len(decisions)
+        risk_count = len(risks)
+
+        if decisions:
+            first_decision = decisions[0].split(":", 1)[-1].strip()[:80]
+            decision_snippet = f" Key resolutions include: {first_decision}{'...' if len(first_decision) == 80 else '.'}"
+        else:
+            decision_snippet = " No formal decisions were recorded."
+
+        risk_note = (
+            f" {risk_count} risk{'s' if risk_count != 1 else ''} or blocker{'s' if risk_count != 1 else ''} flagged."
+            if risks else " No blockers identified."
+        )
+
         summary = {
             "title": title,
             "participants": speakers,
             "total_exchanges": len(transcript_lines),
             "estimated_duration_min": max(1, total_words // 130),
             "executive_summary": (
-                f"The meeting focused on '{title}' with active alignment across {len(speakers)} key stakeholders "
-                f"({', '.join(speakers)}). The team aligned on operational roadmaps, established concrete ownership, "
-                f"and resolved key trade-offs."
+                f"'{title}' — {len(speakers)} stakeholder{'s' if len(speakers) != 1 else ''} "
+                f"({', '.join(speakers)}) across {len(transcript_lines)} exchanges. "
+                f"{decision_count} decision{'s' if decision_count != 1 else ''} confirmed.{decision_snippet}{risk_note}"
             ),
             "key_decisions": decisions if decisions else ["Consensus reached on standard operating deliverables."],
             "risks_and_blockers": risks if risks else ["No critical path blockers identified."],

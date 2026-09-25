@@ -20,8 +20,11 @@ COMMITMENT_TRIGGERS = [
 DEADLINE_PATTERNS = [
     r"(by (?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))",
     r"(by eod|by end of day|by tomorrow|by tonight)",
-    r"(by next week|before end of month|by q[1-4])",
-    r"(within \d+ days|in \d+ hours)"
+    r"(by end of week|by end of month|before end of month|by q[1-4])",
+    r"(by next (?:monday|tuesday|wednesday|thursday|friday|week|month))",
+    r"(within \d+ days|in \d+ hours)",
+    r"(by (?:january|february|march|april|may|june|july|august|september|october|november|december)\s+\d{1,2}(?:st|nd|rd|th)?)",
+    r"(by (?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\.?\s+\d{1,2}(?:st|nd|rd|th)?)"
 ]
 
 class LyzrActionExtractor:

@@ -43,7 +43,7 @@ window.submitCustomVoice = async function() {
   if (!text) return alert("Please speak or enter text first.");
 
   try {
-    const data = await api.submitCustomVoice(text, "Masood (Builder)");
+    const data = await api.submitCustomVoice(text, "Voice Input");
     ui.renderDossier(data);
   } catch (e) {
     console.error("Custom voice submission failed", e);
