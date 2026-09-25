@@ -52,16 +52,16 @@ graph TD
 - Simulates realistic enterprise scenarios: Q4 Executive Budget Strategy, P0 SRE Outage Postmortem, and Stanford CS229 Transformer Scaling Laws.
 
 ### 2. ⚡ Qdrant Vector Database Layer
-- Ingests dialogue turns into the `omi_ambient_memory` collection using 128-dimensional dense semantic vector embeddings.
+- Ingests dialogue turns into the `omi_ambient_memory` collection using 128-dimensional dense semantic vector embeddings (stop-word filtered, subword 3-gram + bigram context, L2-normalised).
 - Rich payload metadata: speaker ID, ISO timestamps, meeting category, urgency level, and raw text.
-- Supports hybrid semantic vector recall with cosine similarity thresholding, allowing users to ask questions like:
-  > *"What was Sarah's decision regarding the Q4 compute budget cap?"*  
-  > *"Why did our ingress certificate fail during the outage?"*
+- Hybrid semantic recall engine: **60% normalised cosine vector similarity + 40% lexical stem overlap** — producing dynamic, per-query relevance scores (e.g. 72.7%, 53.8%, 100.0%) with full speaker attribution.
+  > *"What temperature must the vaccine containers maintain?"* → Leo (Firmware Architect): 72.7% match  
+  > *"What did Samantha say about the FAA airspace waiver?"* → Samantha (Regulatory Compliance): 53.8% match
 
 ### 3. 🐝 Lyzr Multi-Agent Swarm
-- **`LyzrActionExtractor`**: Detects verbal commitments, promises, assignees, deadlines, and urgency ratings without requiring manual prompt engineering.
-- **`LyzrExecutiveSynthesizer`**: Distills complex hours-long recordings into structured briefings, confirmed decisions, and path blockers.
-- **`LyzrTaskDispatcher`**: Formats structured deliverables including complete follow-up emails, Jira ticket cards, and calendar blocks.
+- **`LyzrActionExtractor`**: Detects verbal commitments, promises, assignees, deadlines (including calendar dates like "by October 15th"), and urgency ratings (P0/Critical/High) without manual prompt engineering.
+- **`LyzrExecutiveSynthesizer`**: Dynamically synthesises meeting-specific briefings — decision count, first key resolution, risk count — derived from the actual transcript content, not boilerplate templates.
+- **`LyzrTaskDispatcher`**: Auto-drafts follow-up emails (with subject, recipients, and body) and Jira-ready tickets (OMI-1, OMI-2…) labelled `OmiVoice`, `LyzrAgent`, `QdrantMemory`.
 
 ---
 
@@ -123,7 +123,7 @@ tests/test_omimind.py::test_lyzr_action_extractor PASSED                 [ 50%]
 tests/test_omimind.py::test_executive_synthesizer PASSED                 [ 66%]
 tests/test_omimind.py::test_task_dispatcher PASSED                       [ 83%]
 tests/test_omimind.py::test_full_orchestration PASSED                    [100%]
-============================== 6 passed in 4.10s ==============================
+============================== 6 passed in 2.62s ==============================
 ```
 
 ---
