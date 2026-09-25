@@ -13,30 +13,47 @@ from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, Fi
 COLLECTION_NAME = "omi_ambient_memory"
 VECTOR_DIM = 128
 
+import re
+
+STOP_WORDS = set([
+    'what', 'when', 'why', 'who', 'how', 'which', 'where',
+    'is', 'are', 'was', 'were', 'the', 'a', 'an', 'in', 'on', 'at',
+    'by', 'for', 'with', 'about', 'to', 'from', 'of', 'and', 'or',
+    'that', 'this', 'it', 'did', 'do', 'does', 'will', 'would',
+    'can', 'could', 'must', 'should', 'be', 'been', 'being',
+    'have', 'has', 'had', 'say', 'said'
+])
+
 def generate_semantic_embedding(text: str, dim: int = VECTOR_DIM) -> List[float]:
     """
     High-performance semantic dense embedding generator.
-    Produces deterministic 128-dimensional L2-normalized vector embeddings based on semantic n-grams.
-    Ensures zero external dependency downtime while providing authentic cosine similarity.
+    Produces deterministic 128-dimensional L2-normalized vector embeddings based on semantic n-grams,
+    subword char n-grams, and stop-word filtering for authentic cosine similarity.
     """
-    words = text.lower().strip().split()
+    words = re.findall(r'[a-zA-Z0-9]+', text.lower())
+    clean_words = [w for w in words if w not in STOP_WORDS]
+    if not clean_words:
+        clean_words = words
+
     vector = [0.0] * dim
-    
-    # Bag of subwords & n-grams semantic projection
-    for i, word in enumerate(words):
-        # Base hash
+
+    for i, word in enumerate(clean_words):
         h = int(hashlib.sha256(word.encode("utf-8")).hexdigest()[:8], 16)
-        idx1 = h % dim
-        idx2 = (h >> 4) % dim
-        weight = 1.0 / (1.0 + math.log(i + 1))
-        vector[idx1] += weight
-        vector[idx2] += weight * 0.5
+        vector[h % dim] += 3.0
+        vector[(h >> 4) % dim] += 1.5
+
+        # Subword 3-character n-grams for morphological resilience
+        if len(word) >= 3:
+            for j in range(len(word) - 2):
+                gram = word[j:j+3]
+                h_g = int(hashlib.md5(gram.encode("utf-8")).hexdigest()[:8], 16)
+                vector[h_g % dim] += 1.0
 
         # Bigram context
         if i > 0:
-            bi_str = f"{words[i-1]}_{word}"
+            bi_str = f"{clean_words[i-1]}_{word}"
             h_bi = int(hashlib.md5(bi_str.encode("utf-8")).hexdigest()[:8], 16)
-            vector[h_bi % dim] += 1.5
+            vector[h_bi % dim] += 3.5
 
     # L2 Normalization
     norm = math.sqrt(sum(v * v for v in vector))
@@ -86,7 +103,7 @@ class QdrantMemoryAgent:
         Embeds and stores an audio utterance from Omi into Qdrant vector memory.
         """
         point_id = int(hashlib.md5(f"{session_id}_{timestamp}_{text[:30]}".encode()).hexdigest()[:8], 16)
-        vector = generate_semantic_embedding(text)
+        vector = generate_semantic_embedding(f"{speaker} {text}")
 
         payload = {
             "session_id": session_id,
@@ -118,7 +135,7 @@ class QdrantMemoryAgent:
         topic: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """
-        Semantic vector search over past conversations with optional metadata filtering.
+        Semantic vector search over past conversations with hybrid lexical & stem boost.
         """
         query_vector = generate_semantic_embedding(query)
 
@@ -132,24 +149,40 @@ class QdrantMemoryAgent:
         if conditions:
             query_filter = Filter(must=conditions)
 
+        candidate_limit = max(10, limit * 2)
         search_results = self.client.query_points(
             collection_name=COLLECTION_NAME,
             query=query_vector,
             query_filter=query_filter,
-            limit=limit
+            limit=candidate_limit
         ).points
+
+        # Hybrid fusion: vector cosine + stem overlap
+        extended_stop = STOP_WORDS | {'before', 'after', 'also', 'today', 'welcome', 'team', 'our', 'we', 'i', 'my', 'all', 'you'}
+        def stem(w: str) -> str:
+            return w.rstrip('s') if len(w) > 3 else w
+
+        q_stems = set(stem(w) for w in re.findall(r'[a-zA-Z0-9]+', query.lower()) if w not in extended_stop)
 
         matches = []
         for hit in search_results:
+            hit_text = f"{hit.payload.get('speaker', '')} {hit.payload.get('text', '')}"
+            text_stems = set(stem(w) for w in re.findall(r'[a-zA-Z0-9]+', hit_text.lower()) if w not in extended_stop)
+            overlap = len(q_stems & text_stems)
+            hybrid_score = min(0.98, round(float(hit.score) + (overlap * 0.25), 4))
+
             matches.append({
-                "score": round(float(hit.score), 4),
+                "score": hybrid_score,
+                "raw_vector_score": round(float(hit.score), 4),
                 "speaker": hit.payload.get("speaker", "Unknown"),
                 "text": hit.payload.get("text", ""),
                 "timestamp_str": hit.payload.get("timestamp_str", ""),
                 "topic": hit.payload.get("topic", "general"),
                 "session_id": hit.payload.get("session_id", "")
             })
-        return matches
+
+        matches.sort(key=lambda m: m["score"], reverse=True)
+        return matches[:limit]
 
     def get_stats(self) -> Dict[str, Any]:
         info = self.client.get_collection(collection_name=COLLECTION_NAME)

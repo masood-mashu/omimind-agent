@@ -3,6 +3,7 @@ main.py - FastAPI Application Server for OmiMind Ambient Voice Intelligence
 Exposes REST endpoints for Qdrant vector memory, Lyzr agent synthesis, and frontend UI.
 """
 import os
+import re
 import uuid
 import time
 from typing import Dict, Any, List, Optional
@@ -92,22 +93,49 @@ def process_meeting(req: ProcessRequest):
 def ingest_custom_voice(req: CustomVoiceRequest):
     session_id = f"voice_{uuid.uuid4().hex[:8]}"
     
-    # Break transcript into sentences/turns
-    raw_sentences = [s.strip() for s in req.transcript.split(".") if len(s.strip()) > 3]
+    # Intelligently parse multi-speaker transcripts or single speaker streams
+    raw_blocks = re.split(r"\n+", req.transcript.strip())
+    speaker_pattern = re.compile(r"^([A-Z][A-Za-z0-9\s\.\(\)\-_]{1,35}):\s*(.+)$")
+
     lines = []
-    for i, s in enumerate(raw_sentences):
-        lines.append({
-            "speaker": req.speaker,
-            "timestamp_str": time.strftime("%H:%M:%S", time.gmtime()),
-            "text": s + "."
-        })
+    detected_speakers = set()
+    current_speaker = req.speaker
+
+    for block in raw_blocks:
+        block_str = block.strip()
+        if not block_str:
+            continue
+
+        m = speaker_pattern.match(block_str)
+        if m:
+            current_speaker = m.group(1).strip()
+            content = m.group(2).strip()
+            detected_speakers.add(current_speaker)
+        else:
+            content = block_str
+
+        # Split sentences preserving abbreviations
+        sentences = re.split(r"(?<=[.?!])\s+(?=[A-Z0-9\"\'\-])", content)
+        for s in sentences:
+            s_clean = s.strip()
+            if len(s_clean) > 3:
+                lines.append({
+                    "speaker": current_speaker,
+                    "timestamp_str": time.strftime("%H:%M:%S", time.gmtime()),
+                    "text": s_clean
+                })
 
     if not lines:
         lines = [{"speaker": req.speaker, "timestamp_str": "00:01", "text": req.transcript}]
 
+    # Adapt title if generic and multiple stakeholders were identified
+    title = req.title
+    if title == "Live Omi Voice Memo" and len(detected_speakers) > 1:
+        title = "Multi-Stakeholder Operational Sync"
+
     dossier = orchestrator.process_session(
         session_id=session_id,
-        title=req.title,
+        title=title,
         transcript_lines=lines
     )
     processed_cache[session_id] = dossier
