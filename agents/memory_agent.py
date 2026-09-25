@@ -169,7 +169,10 @@ class QdrantMemoryAgent:
             hit_text = f"{hit.payload.get('speaker', '')} {hit.payload.get('text', '')}"
             text_stems = set(stem(w) for w in re.findall(r'[a-zA-Z0-9]+', hit_text.lower()) if w not in extended_stop)
             overlap = len(q_stems & text_stems)
-            hybrid_score = min(0.98, round(float(hit.score) + (overlap * 0.25), 4))
+            lexical_ratio = (overlap / len(q_stems)) if q_stems else 0.0
+            raw_cosine = float(hit.score)
+            norm_cosine = min(1.0, max(0.0, (raw_cosine - 0.15) / 0.55))
+            hybrid_score = round((0.60 * norm_cosine) + (0.40 * lexical_ratio), 4)
 
             matches.append({
                 "score": hybrid_score,
