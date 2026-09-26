@@ -1,4 +1,4 @@
-﻿# 🎙️ OmiMind: Ambient Voice Memory & Autonomous Chief of Staff
+# 🎙️ OmiMind: Ambient Voice Memory & Autonomous Chief of Staff
 
 [![CI Tests](https://github.com/masood-mashu/omimind-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/masood-mashu/omimind-agent/actions)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -20,30 +20,52 @@ Built for **HiDevs × Lyzr × Qdrant × Omi Hackathon 2026 — Track 1: Meeting 
 ## 🏛️ System Architecture
 
 ```mermaid
-graph TD
-    User([Omi Wearable / Browser Mic]) -->|Ambient Audio Stream| Omi[Omi Voice Webhook / WebSpeech Ingestion]
-    Omi -->|Transcripts & Speaker Segments| Server[FastAPI v2.0 — backend/main.py]
+flowchart TD
+    User["🎙️ Omi Wearable / Mic"] -->|Ambient Audio Stream| Omi["Omi Voice Webhook / Ingestion"]
+    Omi -->|Transcripts & Speaker Segments| Server["FastAPI v2.0 (backend/main.py)"]
 
-    subgraph Qdrant Cloud Vector Memory Layer
-        Server -->|128-Dim L2-Normalised Embeddings| Qdrant[(Qdrant Cloud: omi_ambient_memory\n19 Vectors · Cosine · Persistent)]
-        Qdrant <-->|Hybrid 60% Cosine + 40% Lexical Search| MemAgent[Memory Agent — agents/memory_agent.py]
+    subgraph QDRANT ["⚡ Qdrant Cloud Vector Memory Layer"]
+        Server -->|128-Dim Normalized Vectors| Qdrant[("Qdrant Cloud: omi_ambient_memory<br/>19 Vectors · Cosine · Persistent")]
+        Qdrant <-->|Hybrid 60% Cosine + 40% Lexical| MemAgent["Memory Agent (agents/memory_agent.py)"]
     end
 
-    subgraph Lyzr 4-Agent Swarm — SSE Streaming Pipeline
-        Server -->|SSE Event Stream| Stream[Live Agent Pipeline Dashboard]
-        Stream --> A1[Agent 1: Qdrant Memory Indexer]
-        Stream --> A2[Agent 2: Lyzr Action Extractor]
-        Stream --> A3[Agent 3: Lyzr Executive Synthesizer]
-        Stream --> A4[Agent 4: Lyzr Task Dispatcher]
+    subgraph LYZR ["🐝 Lyzr 4-Agent Swarm (SSE Stream)"]
+        Server -->|SSE Event Stream| Stream["Live Agent Pipeline Dashboard"]
+        Stream --> A1["Agent 1: Qdrant Memory Indexer"]
+        Stream --> A2["Agent 2: Lyzr Action Extractor"]
+        Stream --> A3["Agent 3: Lyzr Executive Synthesizer"]
+        Stream --> A4["Agent 4: Lyzr Task Dispatcher"]
     end
 
-    subgraph Autonomous Deliverables
-        A2 --> Actions[Action Items + Kanban]
-        A3 --> Dossier[Executive Briefing + Decisions + Risks]
-        A4 --> Email[Auto-Drafted Follow-Up Email]
-        A4 --> Jira[Jira / GitHub API-Ready Tickets]
-        MemAgent --> QnA[Live Semantic Q&A — 400ms Debounce]
+    subgraph OUTPUTS ["📦 Autonomous Deliverables"]
+        A2 --> Actions["Action Items + Kanban"]
+        A3 --> Dossier["Executive Briefing + Decisions + Risks"]
+        A4 --> Email["Auto-Drafted Follow-Up Email"]
+        A4 --> Jira["Jira / GitHub API-Ready Tickets"]
+        MemAgent --> QnA["Live Semantic Q&A (400ms Debounce)"]
     end
+```
+
+### Visual Dataflow Diagram
+
+```
+[🎙️ Omi Wearable / Mic]
+         │ (Ambient Audio / Webhook)
+         ▼
+[POST /api/omi-webhook] ──► [FastAPI v2.0 Ingestion Engine]
+                                   │
+         ┌─────────────────────────┴────────────────────────┐
+         ▼                                                  ▼
+[⚡ Qdrant Cloud Vector Memory]                  [🐝 Lyzr 4-Agent Swarm]
+ • 128-Dim Dense Embeddings                       (Real-Time SSE Stream)
+ • omi_ambient_memory (19 Vectors)                          │
+ • Hybrid Search: 60% Cosine + 40% Lexical                 ├──► 🗄️ Memory Agent (Cloud Index)
+ • 400ms Debounced Instant Query                          ├──► 🎯 Action Extractor (Kanban / Deadlines)
+         │                                                 ├──► 🧠 Executive Synth (Decisions / Risks)
+         ▼                                                 └──► 📬 Task Dispatcher (Emails / Jira)
+[🔍 Live Semantic Search]                                           │
+                                                                    ▼
+                                                    [📋 Executive Dashboard & Action Suite]
 ```
 
 ---
