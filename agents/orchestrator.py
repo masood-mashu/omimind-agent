@@ -2,11 +2,13 @@
 orchestrator.py - Central Coordinator for OmiMind Multi-Agent Swarm
 Coordinates Qdrant vector memory indexing, Lyzr agent synthesis, and natural language recall.
 """
-from typing import List, Dict, Any, Optional
-from agents.memory_agent import QdrantMemoryAgent
+from typing import Any
+
 from agents.action_extractor import LyzrActionExtractor
 from agents.executive_synth import LyzrExecutiveSynthesizer
+from agents.memory_agent import QdrantMemoryAgent
 from agents.task_dispatcher import LyzrTaskDispatcher
+
 
 class OmiMindOrchestrator:
     def __init__(self, storage_path: str = "./qdrant_storage"):
@@ -15,7 +17,7 @@ class OmiMindOrchestrator:
         self.synthesizer = LyzrExecutiveSynthesizer()
         self.dispatcher = LyzrTaskDispatcher()
 
-    def process_session(self, session_id: str, title: str, transcript_lines: List[Dict[str, str]]) -> Dict[str, Any]:
+    def process_session(self, session_id: str, title: str, transcript_lines: list[dict[str, str]]) -> dict[str, Any]:
         """
         Ingests a complete meeting/lecture session:
         1. Embeds each line into Qdrant vector memory with metadata payloads.
@@ -56,12 +58,12 @@ class OmiMindOrchestrator:
             "jira_tickets": jira_tickets
         }
 
-    def query_semantic_memory(self, query: str, limit: int = 4) -> Dict[str, Any]:
+    def query_semantic_memory(self, query: str, limit: int = 4) -> dict[str, Any]:
         """
         Semantic Q&A over past audio transcripts stored in Qdrant.
         """
         results = self.memory.search_memory(query=query, limit=limit)
-        
+
         if not results:
             answer = f"No direct conversational records found in Qdrant matching '{query}'."
         else:

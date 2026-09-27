@@ -2,68 +2,141 @@
 memory_agent.py - Qdrant Vector Memory Integration for Omi Ambient Audio
 Manages persistent conversational memory collections, dense vector embeddings, and semantic recall.
 """
-import os
-import time
-import math
 import hashlib
-from typing import List, Dict, Any, Optional
+import math
+import os
+import re
+from abc import ABC, abstractmethod
+from typing import Any
+
 from qdrant_client import QdrantClient
-from qdrant_client.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
+from qdrant_client.models import (
+    Distance,
+    FieldCondition,
+    Filter,
+    MatchValue,
+    PointStruct,
+    VectorParams,
+)
 
 COLLECTION_NAME = "omi_ambient_memory"
 VECTOR_DIM = 128
 
-import re
-
-STOP_WORDS = set([
+STOP_WORDS = {
     'what', 'when', 'why', 'who', 'how', 'which', 'where',
     'is', 'are', 'was', 'were', 'the', 'a', 'an', 'in', 'on', 'at',
     'by', 'for', 'with', 'about', 'to', 'from', 'of', 'and', 'or',
     'that', 'this', 'it', 'did', 'do', 'does', 'will', 'would',
     'can', 'could', 'must', 'should', 'be', 'been', 'being',
     'have', 'has', 'had', 'say', 'said'
-])
+}
 
-def generate_semantic_embedding(text: str, dim: int = VECTOR_DIM) -> List[float]:
+class BaseEmbeddingModel(ABC):
+    """Abstract Base Class for semantic vector embedding providers."""
+
+    @abstractmethod
+    def embed_text(self, text: str, dim: int = VECTOR_DIM) -> list[float]:
+        """Generate a dense vector representation of input text."""
+
+
+class DeterministicSubwordEmbedding(BaseEmbeddingModel):
     """
-    High-performance semantic dense embedding generator.
-    Produces deterministic 128-dimensional L2-normalized vector embeddings based on semantic n-grams,
-    subword char n-grams, and stop-word filtering for authentic cosine similarity.
+    High-performance zero-dependency subword embedding model.
+    Produces deterministic 128-dimensional L2-normalized vector embeddings based on
+    semantic n-grams, subword character n-grams, and stop-word filtering.
+    Optimal for edge devices and low-latency serverless runtimes.
     """
-    words = re.findall(r'[a-zA-Z0-9]+', text.lower())
-    clean_words = [w for w in words if w not in STOP_WORDS]
-    if not clean_words:
-        clean_words = words
 
-    vector = [0.0] * dim
+    def embed_text(self, text: str, dim: int = VECTOR_DIM) -> list[float]:
+        words = re.findall(r'[a-zA-Z0-9]+', text.lower())
+        clean_words = [w for w in words if w not in STOP_WORDS]
+        if not clean_words:
+            clean_words = words
 
-    for i, word in enumerate(clean_words):
-        h = int(hashlib.sha256(word.encode("utf-8")).hexdigest()[:8], 16)
-        vector[h % dim] += 3.0
-        vector[(h >> 4) % dim] += 1.5
-
-        # Subword 3-character n-grams for morphological resilience
-        if len(word) >= 3:
-            for j in range(len(word) - 2):
-                gram = word[j:j+3]
-                h_g = int(hashlib.md5(gram.encode("utf-8")).hexdigest()[:8], 16)
-                vector[h_g % dim] += 1.0
-
-        # Bigram context
-        if i > 0:
-            bi_str = f"{clean_words[i-1]}_{word}"
-            h_bi = int(hashlib.md5(bi_str.encode("utf-8")).hexdigest()[:8], 16)
-            vector[h_bi % dim] += 3.5
-
-    # L2 Normalization
-    norm = math.sqrt(sum(v * v for v in vector))
-    if norm > 0:
-        vector = [v / norm for v in vector]
-    else:
         vector = [0.0] * dim
-        vector[0] = 1.0
 
-    return vector
+        for i, word in enumerate(clean_words):
+            h = int(hashlib.sha256(word.encode("utf-8")).hexdigest()[:8], 16)
+            vector[h % dim] += 3.0
+            vector[(h >> 4) % dim] += 1.5
+
+            # Subword 3-character n-grams for morphological resilience
+            if len(word) >= 3:
+                for j in range(len(word) - 2):
+                    gram = word[j:j+3]
+                    h_g = int(hashlib.md5(gram.encode("utf-8")).hexdigest()[:8], 16)
+                    vector[h_g % dim] += 1.0
+
+            # Bigram context
+            if i > 0:
+                bi_str = f"{clean_words[i-1]}_{word}"
+                h_bi = int(hashlib.md5(bi_str.encode("utf-8")).hexdigest()[:8], 16)
+                vector[h_bi % dim] += 3.5
+
+        # L2 Normalization
+        norm = math.sqrt(sum(v * v for v in vector))
+        if norm > 0:
+            vector = [v / norm for v in vector]
+        else:
+            vector = [0.0] * dim
+            vector[0] = 1.0
+
+        return vector
+
+
+class SentenceTransformerEmbedding(BaseEmbeddingModel):
+    """
+    Production-grade Transformer embedding model.
+    Utilizes standard sentence-transformers (e.g., all-MiniLM-L6-v2) or FastEmbed when available,
+    with graceful fallback to DeterministicSubwordEmbedding.
+    """
+
+    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+        self.model_name = model_name
+        self._model = None
+        self._fallback = DeterministicSubwordEmbedding()
+
+    def _get_model(self):
+        if self._model is None:
+            try:
+                from sentence_transformers import SentenceTransformer
+                self._model = SentenceTransformer(self.model_name)
+            except Exception:
+                self._model = False
+        return self._model
+
+    def embed_text(self, text: str, dim: int = VECTOR_DIM) -> list[float]:
+        model = self._get_model()
+        if model:
+            try:
+                raw_vec = model.encode(text, normalize_embeddings=True)
+                # Resample or project to target dimension
+                if len(raw_vec) == dim:
+                    return raw_vec.tolist()
+                elif len(raw_vec) > dim:
+                    vec = raw_vec[:dim].tolist()
+                    norm = math.sqrt(sum(v * v for v in vec))
+                    return [v / norm for v in vec] if norm > 0 else vec
+            except Exception:
+                pass
+        return self._fallback.embed_text(text, dim=dim)
+
+
+# Embedding Provider Factory
+def get_embedding_provider() -> BaseEmbeddingModel:
+    provider = os.environ.get("EMBEDDING_PROVIDER", "default").lower()
+    if provider in ("sentence_transformers", "transformer", "production"):
+        return SentenceTransformerEmbedding()
+    return DeterministicSubwordEmbedding()
+
+_ACTIVE_EMBEDDING_MODEL = get_embedding_provider()
+
+def generate_semantic_embedding(text: str, dim: int = VECTOR_DIM) -> list[float]:
+    """
+    Standard entry point for semantic dense vector generation.
+    Dispatches to the active embedding provider.
+    """
+    return _ACTIVE_EMBEDDING_MODEL.embed_text(text, dim=dim)
 
 class QdrantMemoryAgent:
     def __init__(self, storage_path: str = "./qdrant_storage"):
@@ -89,9 +162,17 @@ class QdrantMemoryAgent:
         self._ensure_collection()
 
     def _ensure_collection(self):
-        collections = self.client.get_collections().collections
-        exists = any(c.name == COLLECTION_NAME for c in collections)
-        if not exists:
+        try:
+            collections = self.client.get_collections().collections
+            exists = any(c.name == COLLECTION_NAME for c in collections)
+            if not exists:
+                self.client.create_collection(
+                    collection_name=COLLECTION_NAME,
+                    vectors_config=VectorParams(size=VECTOR_DIM, distance=Distance.COSINE),
+                )
+        except Exception:
+            # Fallback to in-memory if remote cloud or path fails
+            self.client = QdrantClient(":memory:")
             self.client.create_collection(
                 collection_name=COLLECTION_NAME,
                 vectors_config=VectorParams(size=VECTOR_DIM, distance=Distance.COSINE),
@@ -139,9 +220,9 @@ class QdrantMemoryAgent:
         self,
         query: str,
         limit: int = 4,
-        speaker: Optional[str] = None,
-        topic: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        speaker: str | None = None,
+        topic: str | None = None
+    ) -> list[dict[str, Any]]:
         """
         Semantic vector search over past conversations with hybrid lexical & stem boost.
         """
@@ -170,12 +251,12 @@ class QdrantMemoryAgent:
         def stem(w: str) -> str:
             return w.rstrip('s') if len(w) > 3 else w
 
-        q_stems = set(stem(w) for w in re.findall(r'[a-zA-Z0-9]+', query.lower()) if w not in extended_stop)
+        q_stems = {stem(w) for w in re.findall(r'[a-zA-Z0-9]+', query.lower()) if w not in extended_stop}
 
         matches = []
         for hit in search_results:
             hit_text = f"{hit.payload.get('speaker', '')} {hit.payload.get('text', '')}"
-            text_stems = set(stem(w) for w in re.findall(r'[a-zA-Z0-9]+', hit_text.lower()) if w not in extended_stop)
+            text_stems = {stem(w) for w in re.findall(r'[a-zA-Z0-9]+', hit_text.lower()) if w not in extended_stop}
             overlap = len(q_stems & text_stems)
             lexical_ratio = (overlap / len(q_stems)) if q_stems else 0.0
             raw_cosine = float(hit.score)
@@ -195,7 +276,7 @@ class QdrantMemoryAgent:
         matches.sort(key=lambda m: m["score"], reverse=True)
         return matches[:limit]
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         info = self.client.get_collection(collection_name=COLLECTION_NAME)
         return {
             "collection": COLLECTION_NAME,

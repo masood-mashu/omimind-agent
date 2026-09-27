@@ -1,24 +1,22 @@
-﻿"""
+"""
 main.py - FastAPI Application Server for OmiMind Ambient Voice Intelligence
 Exposes REST endpoints for Qdrant vector memory, Lyzr agent synthesis, and frontend UI.
 """
+import json
 import os
 import re
-import uuid
 import time
-import json
-from typing import Dict, Any, List, Optional, AsyncGenerator
+import uuid
+from collections.abc import AsyncGenerator
+from typing import Any
+
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
 from fastapi.responses import StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from agents.orchestrator import OmiMindOrchestrator
-from agents.memory_agent import QdrantMemoryAgent
-from agents.action_extractor import LyzrActionExtractor
-from agents.executive_synth import LyzrExecutiveSynthesizer
-from agents.task_dispatcher import LyzrTaskDispatcher
 from backend.mock_data import DEMO_MEETINGS
 
 app = FastAPI(
@@ -39,7 +37,7 @@ app.add_middleware(
 orchestrator = OmiMindOrchestrator(storage_path="./qdrant_storage")
 
 # Active processed sessions cache
-processed_cache: Dict[str, Any] = {}
+processed_cache: dict[str, Any] = {}
 
 class ProcessRequest(BaseModel):
     meeting_id: str
@@ -51,19 +49,19 @@ class CustomVoiceRequest(BaseModel):
 
 class QueryRequest(BaseModel):
     question: str
-    limit: Optional[int] = 4
+    limit: int | None = 4
 
 class OmiWebhookRequest(BaseModel):
     """Native Omi device webhook payload format."""
-    session_id: Optional[str] = None
-    segments: Optional[List[Dict[str, Any]]] = None
+    session_id: str | None = None
+    segments: list[dict[str, Any]] | None = None
     # Also accept flat transcript format
-    transcript: Optional[str] = None
-    speaker: Optional[str] = "Omi User"
+    transcript: str | None = None
+    speaker: str | None = "Omi User"
 
 # â”€â”€â”€ Helper: parse raw transcript blocks â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-def parse_transcript(transcript: str, default_speaker: str = "User") -> tuple[List[Dict], set]:
+def parse_transcript(transcript: str, default_speaker: str = "User") -> tuple[list[dict], set]:
     raw_blocks = re.split(r"\n+", transcript.strip())
     speaker_pattern = re.compile(r"^([A-Z][A-Za-z0-9\s\.\(\)\-_]{1,35}):\s*(.+)$")
     lines = []
@@ -114,7 +112,7 @@ def health():
 @app.get("/api/meetings")
 def get_meetings():
     meetings_list = []
-    for m_id, m in DEMO_MEETINGS.items():
+    for m in DEMO_MEETINGS.values():
         meetings_list.append({
             "id": m["id"],
             "title": m["title"],
@@ -140,7 +138,7 @@ def process_meeting(req: ProcessRequest):
 
 # â”€â”€â”€ SSE Streaming Pipeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-async def _stream_pipeline(session_id: str, title: str, lines: List[Dict]) -> AsyncGenerator[str, None]:
+async def _stream_pipeline(session_id: str, title: str, lines: list[dict]) -> AsyncGenerator[str, None]:
     """Yields SSE events for each agent stage so the frontend can animate them."""
 
     def sse(data: dict) -> str:

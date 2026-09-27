@@ -2,12 +2,13 @@
 executive_synth.py - Lyzr Executive Synthesis Agent
 Produces structured meeting briefings, key decisions, blockers, and strategic takeaways.
 """
-from typing import List, Dict, Any
+from typing import Any
+
 
 class LyzrExecutiveSynthesizer:
-    def synthesize_meeting(self, title: str, transcript_lines: List[Dict[str, str]]) -> Dict[str, Any]:
-        speakers = sorted(list(set(l.get("speaker", "Speaker") for l in transcript_lines)))
-        total_words = sum(len(l.get("text", "").split()) for l in transcript_lines)
+    def synthesize_meeting(self, title: str, transcript_lines: list[dict[str, str]]) -> dict[str, Any]:
+        speakers = sorted({line.get("speaker", "Speaker") for line in transcript_lines})
+        total_words = sum(len(line.get("text", "").split()) for line in transcript_lines)
 
         # Detect decisions
         decision_keywords = ["agreed", "decided", "approved", "confirmed", "final call", "we will go with"]

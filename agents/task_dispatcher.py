@@ -2,10 +2,11 @@
 task_dispatcher.py - Lyzr Autonomous Task Dispatcher
 Converts extracted meeting items into actionable outputs: email drafts, Jira tickets, and follow-ups.
 """
-from typing import List, Dict, Any
+from typing import Any
+
 
 class LyzrTaskDispatcher:
-    def generate_followup_email(self, summary: Dict[str, Any], action_items: List[Dict[str, Any]]) -> Dict[str, str]:
+    def generate_followup_email(self, summary: dict[str, Any], action_items: list[dict[str, Any]]) -> dict[str, str]:
         subject = f"[Action Required] Follow-Up: {summary.get('title', 'Executive Meeting Summary')}"
         participants = ", ".join(summary.get("participants", ["Team"]))
 
@@ -27,7 +28,7 @@ ACTION ITEMS & DELIVERABLES:
 {action_bullets if action_bullets else 'No open action items pending.'}
 
 RISKS & MONITORING:
-""" + "\n".join([f"⚠️ {r}" for r in summary.get("risks_and_blockers", [])]) + f"""
+""" + "\n".join([f"⚠️ {r}" for r in summary.get("risks_and_blockers", [])]) + """
 
 Best regards,
 OmiMind Autonomous Chief of Staff
@@ -39,7 +40,7 @@ OmiMind Autonomous Chief of Staff
             "body": body.strip()
         }
 
-    def generate_jira_tickets(self, action_items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def generate_jira_tickets(self, action_items: list[dict[str, Any]]) -> list[dict[str, Any]]:
         tickets = []
         for item in action_items:
             tickets.append({

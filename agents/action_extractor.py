@@ -3,7 +3,7 @@ action_extractor.py - Lyzr Action Item & Commitment Extractor
 Detects verbal promises, task assignments, deadlines, and priority levels from meeting transcripts.
 """
 import re
-from typing import List, Dict, Any
+from typing import Any
 
 COMMITMENT_TRIGGERS = [
     r"i will\s+(.+)",
@@ -29,9 +29,9 @@ DEADLINE_PATTERNS = [
 
 class LyzrActionExtractor:
     def __init__(self):
-        self.extracted_items: List[Dict[str, Any]] = []
+        self.extracted_items: list[dict[str, Any]] = []
 
-    def extract_from_utterance(self, speaker: str, text: str, timestamp_str: str) -> List[Dict[str, Any]]:
+    def extract_from_utterance(self, speaker: str, text: str, timestamp_str: str) -> list[dict[str, Any]]:
         text_lower = text.lower()
         items = []
 
@@ -76,7 +76,7 @@ class LyzrActionExtractor:
         self.extracted_items.extend(items)
         return items
 
-    def extract_from_transcript(self, transcript_lines: List[Dict[str, str]]) -> List[Dict[str, Any]]:
+    def extract_from_transcript(self, transcript_lines: list[dict[str, str]]) -> list[dict[str, Any]]:
         results = []
         for line in transcript_lines:
             items = self.extract_from_utterance(

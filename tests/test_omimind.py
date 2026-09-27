@@ -7,13 +7,13 @@ Covers:
 4. Task Dispatcher (Email & Jira Tickets)
 5. Full Swarm Orchestration & Semantic Q&A
 """
-import pytest
-from agents.memory_agent import QdrantMemoryAgent, generate_semantic_embedding
 from agents.action_extractor import LyzrActionExtractor
 from agents.executive_synth import LyzrExecutiveSynthesizer
-from agents.task_dispatcher import LyzrTaskDispatcher
+from agents.memory_agent import QdrantMemoryAgent, generate_semantic_embedding
 from agents.orchestrator import OmiMindOrchestrator
+from agents.task_dispatcher import LyzrTaskDispatcher
 from backend.mock_data import DEMO_MEETINGS
+
 
 def test_semantic_embedding_generator():
     """Verify that semantic vectors are 128-dim and unit normalized."""
@@ -23,13 +23,13 @@ def test_semantic_embedding_generator():
     assert len(vec2) == 128
 
     # Cosine dot product of related texts must be strongly positive
-    dot = sum(a * b for a, b in zip(vec1, vec2))
+    dot = sum(a * b for a, b in zip(vec1, vec2, strict=False))
     assert dot > 0.40
 
 def test_qdrant_vector_memory():
     """Verify that Qdrant indexes points and executes semantic vector search."""
     memory = QdrantMemoryAgent(storage_path=":memory:")
-    
+
     # Index 2 distinct statements
     memory.index_utterance("sess1", "Sarah (CFO)", "We will approve the $450k budget by Friday.", 10.0, "00:10", "finance", "high")
     memory.index_utterance("sess1", "Marcus", "The database latency benchmark passed under 50ms.", 20.0, "00:20", "tech", "normal")
