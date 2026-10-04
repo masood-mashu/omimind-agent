@@ -9,8 +9,9 @@ from pydantic import BaseModel, Field
 
 # Gracefully load local .env if python-dotenv is installed
 try:
-    from dotenv import load_dotenv
-    load_dotenv()
+    import importlib
+    dotenv_module = importlib.import_module("dotenv")
+    dotenv_module.load_dotenv()
 except Exception:
     pass
 

@@ -100,7 +100,9 @@ class SentenceTransformerEmbedding(BaseEmbeddingModel):
     def _get_model(self):
         if self._model is None:
             try:
-                from sentence_transformers import SentenceTransformer
+                import importlib
+                st_mod = importlib.import_module("sentence_transformers")
+                SentenceTransformer = st_mod.SentenceTransformer
                 self._model = SentenceTransformer(self.model_name)
             except Exception:
                 self._model = False

@@ -4,7 +4,7 @@ Extracts meeting commitments, scheduling intent, and generates iCal/Google Calen
 """
 import re
 import urllib.parse
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
 
@@ -77,9 +77,10 @@ class LyzrCalendarScheduler:
         """
         Generates standard RFC 5545 iCalendar content for calendar client import (.ics).
         """
-        now_str = datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
+        now_str = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
         title = event.get("title", "OmiMind Meeting")
         desc = event.get("details", event.get("description", "Scheduled via OmiMind Voice Agent."))
+        title_hash = str(abs(hash(title)))[:8]
 
         lines = [
             "BEGIN:VCALENDAR",
@@ -88,7 +89,7 @@ class LyzrCalendarScheduler:
             "CALSCALE:GREGORIAN",
             "METHOD:PUBLISH",
             "BEGIN:VEVENT",
-            f"UID:omimind-{now_str}-{abs(hash(title))[:8]}@omimind.ai" if isinstance(abs(hash(title)), str) else f"UID:omimind-{now_str}@omimind.ai",
+            f"UID:omimind-{now_str}-{title_hash}@omimind.ai",
             f"DTSTAMP:{now_str}",
             f"DTSTART:{now_str}",
             f"SUMMARY:{title}",
