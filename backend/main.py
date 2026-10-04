@@ -198,6 +198,16 @@ async def _stream_pipeline(session_id: str, title: str, lines: list[dict]) -> As
                 "message": f"Email drafted for {len(summary.get('participants', []))} recipients. {len(jira_tickets)} Jira ticket{'s' if len(jira_tickets) != 1 else ''} created.",
                 "count": len(jira_tickets)})
 
+    # Agent 5: Calendar Scheduling
+    yield sse({"agent": "CalendarScheduler", "status": "running",
+                "message": "Extracting meeting commitments and generating calendar links..."})
+
+    calendar_events = orchestrator.scheduler.extract_calendar_events(lines)
+
+    yield sse({"agent": "CalendarScheduler", "status": "done",
+                "message": f"{len(calendar_events)} calendar event{'s' if len(calendar_events) != 1 else ''} detected with Google Meet/iCal links.",
+                "count": len(calendar_events)})
+
     # Final: complete dossier
     dossier = {
         "session_id": session_id,
@@ -206,7 +216,8 @@ async def _stream_pipeline(session_id: str, title: str, lines: list[dict]) -> As
         "summary": summary,
         "action_items": action_items,
         "email_draft": email_draft,
-        "jira_tickets": jira_tickets
+        "jira_tickets": jira_tickets,
+        "calendar_events": calendar_events
     }
     processed_cache[session_id] = dossier
     yield sse({"type": "complete", "dossier": dossier})

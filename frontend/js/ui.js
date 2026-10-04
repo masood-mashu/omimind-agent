@@ -1,9 +1,12 @@
 /**
- * ui.js - Presentation & DOM Rendering Components
+ * ui.js - Presentation & DOM Rendering Components (v2.1)
+ * Enhanced with 5-Agent Swarm, Calendar Invites, and Tactile Feedback
  */
 
+let lastDossier = null;
+
 export function switchTab(tabId) {
-  const tabs = ['summary', 'tasks', 'email', 'jira'];
+  const tabs = ['summary', 'tasks', 'email', 'jira', 'calendar'];
   tabs.forEach(t => {
     const el = document.getElementById(`tab-${t}`);
     const btn = document.getElementById(`tab-${t}-btn`);
@@ -14,7 +17,7 @@ export function switchTab(tabId) {
   const activeEl = document.getElementById(`tab-${tabId}`);
   const activeBtn = document.getElementById(`tab-${tabId}-btn`);
   if (activeEl) activeEl.classList.remove('hidden');
-  if (activeBtn) activeBtn.className = "px-4 py-2 rounded-xl text-sm font-semibold bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 transition";
+  if (activeBtn) activeBtn.className = "px-4 py-2 rounded-xl text-sm font-semibold bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 transition shadow-sm shadow-cyan-500/10";
 }
 
 export function updateMeetingButtons(activeId) {
@@ -30,7 +33,33 @@ export function updateMeetingButtons(activeId) {
   });
 }
 
+export function showToast(message, type = 'success') {
+  let container = document.getElementById('toast-container');
+  if (!container) {
+    container = document.createElement('div');
+    container.id = 'toast-container';
+    container.className = 'fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none';
+    document.body.appendChild(container);
+  }
+
+  const toast = document.createElement('div');
+  const borderCol = type === 'success' ? 'border-cyan-500/40' : 'border-amber-500/40';
+  const textCol = type === 'success' ? 'text-cyan-300' : 'text-amber-300';
+  toast.className = `toast pointer-events-auto px-4 py-2.5 rounded-xl bg-slate-900/95 border ${borderCol} ${textCol} text-xs font-mono shadow-2xl flex items-center gap-2 backdrop-blur-md`;
+  toast.innerHTML = `<span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span><span>${message}</span>`;
+  container.appendChild(toast);
+
+  setTimeout(() => {
+    toast.style.transition = 'opacity 0.3s ease, transform 0.3s ease';
+    toast.style.opacity = '0';
+    toast.style.transform = 'translateY(8px)';
+    setTimeout(() => toast.remove(), 300);
+  }, 2800);
+}
+
 export function renderDossier(data) {
+  lastDossier = data;
+
   // Update Qdrant vector badges
   const badge = document.getElementById('vectors-indexed-badge');
   const countSpan = document.getElementById('indexed-count');
@@ -42,7 +71,7 @@ export function renderDossier(data) {
   // 1. Executive Synthesis Tab
   const s = data.summary;
   const summaryContainer = document.getElementById('summary-content');
-  if (summaryContainer) {
+  if (summaryContainer && s) {
     summaryContainer.innerHTML = `
       <div>
         <div class="flex justify-between items-start mb-2">
@@ -80,11 +109,11 @@ export function renderDossier(data) {
   // 2. Action Items Tab
   const itemsList = document.getElementById('action-items-list');
   if (itemsList) {
-    if (data.action_items.length === 0) {
+    if (!data.action_items || data.action_items.length === 0) {
       itemsList.innerHTML = `<p class="text-slate-500 text-xs">No explicit action items found.</p>`;
     } else {
       itemsList.innerHTML = data.action_items.map(item => `
-        <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between">
+        <div class="p-3.5 rounded-xl bg-slate-900/90 border border-slate-800 flex items-center justify-between hover:border-slate-700 transition">
           <div class="space-y-1 max-w-[70%]">
             <div class="flex items-center gap-2">
               <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
@@ -118,15 +147,83 @@ export function renderDossier(data) {
   const jiraList = document.getElementById('jira-tickets-list');
   if (jiraList && data.jira_tickets) {
     jiraList.innerHTML = data.jira_tickets.map(t => `
-      <div class="p-3 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1">
+      <div class="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1.5 hover:border-slate-700 transition">
         <div class="flex justify-between items-center text-xs">
-          <span class="font-bold text-cyan-300">${t.ticket_key}: ${t.summary}</span>
-          <span class="text-slate-400 text-[10px]">${t.priority} Priority</span>
+          <span class="font-bold text-cyan-300 font-mono">${t.ticket_key}: ${t.summary}</span>
+          <span class="text-slate-400 text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800">${t.priority} Priority</span>
         </div>
-        <div class="text-slate-400 text-[11px]">Assignee: <span class="text-slate-200">${t.assignee}</span> | Due: <span class="text-slate-200">${t.due_date}</span></div>
-        <div class="text-slate-500 text-[10px] italic">${t.description}</div>
+        <div class="text-slate-400 text-[11px] font-mono">Assignee: <span class="text-slate-200">${t.assignee}</span> | Due: <span class="text-slate-200">${t.due_date}</span></div>
+        <div class="text-slate-500 text-[11px] italic font-sans">${t.description}</div>
       </div>
     `).join('');
+  }
+
+  // 5. Calendar Sync Tab (Agent 5)
+  const calList = document.getElementById('calendar-events-list');
+  if (calList) {
+    const events = data.calendar_events || [];
+    if (events.length === 0) {
+      calList.innerHTML = `
+        <div class="p-6 rounded-xl border border-dashed border-slate-800 text-center text-slate-500 text-xs">
+          No explicit scheduling commitments were detected in this transcript.
+        </div>`;
+    } else {
+      calList.innerHTML = events.map((evt, idx) => `
+        <div class="p-4 rounded-xl bg-slate-900/90 border border-indigo-500/20 flex flex-col md:flex-row justify-between md:items-center gap-3 hover:border-indigo-500/40 transition">
+          <div class="space-y-1 max-w-[70%]">
+            <div class="flex items-center gap-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">CALENDAR SYNC</span>
+              <span class="font-semibold text-xs text-white">${evt.title}</span>
+            </div>
+            <p class="text-[11px] text-slate-400 italic font-mono">Proposed by ${evt.speaker_source}: "${evt.context_utterance}"</p>
+            <div class="text-[11px] text-cyan-300 font-mono flex items-center gap-3">
+              <span>📅 ${evt.date_str}</span>
+              <span>⏰ ${evt.time_str} (${evt.duration_minutes}m)</span>
+            </div>
+          </div>
+          <div class="flex items-center gap-2 font-mono text-xs">
+            <a href="${evt.google_calendar_url}" target="_blank" class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs flex items-center gap-1.5 transition">
+              <span>+ Google Meet</span>
+            </a>
+            <button onclick="downloadICS(${idx})" class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition">
+              .ics File
+            </button>
+          </div>
+        </div>
+      `).join('');
+    }
+  }
+}
+
+export function copyEmailText() {
+  const body = document.getElementById('email-body');
+  if (body && body.innerText) {
+    navigator.clipboard.writeText(body.innerText).then(() => {
+      showToast('Follow-up email copied to clipboard!');
+    });
+  }
+}
+
+export function copyJiraText() {
+  if (lastDossier && lastDossier.jira_tickets) {
+    const text = JSON.stringify(lastDossier.jira_tickets, null, 2);
+    navigator.clipboard.writeText(text).then(() => {
+      showToast('Jira ticket payloads copied to clipboard!');
+    });
+  }
+}
+
+export function downloadICS(index) {
+  if (lastDossier && lastDossier.calendar_events && lastDossier.calendar_events[index]) {
+    const evt = lastDossier.calendar_events[index];
+    const blob = new Blob([evt.ics_data || ''], { type: 'text/calendar;charset=utf-8' });
+    const link = document.createElement('a');
+    link.href = window.URL.createObjectURL(blob);
+    link.setAttribute('download', `${evt.id || 'meeting'}.ics`);
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    showToast(`Downloaded ${evt.title} (.ics)`);
   }
 }
 
@@ -141,22 +238,22 @@ export function renderQueryResult(data) {
   }
 }
 
-// ─── Agent Pipeline Live Visualization ──────────────────────────────────────────
+// ─── Agent Pipeline Live Visualization (5 Agents) ─────────────────────────────
 
 const AGENT_LABELS = {
   MemoryAgent:          { icon: '🗄️', label: 'Qdrant Memory Agent',       color: 'cyan' },
   ActionExtractor:      { icon: '🎯', label: 'Lyzr Action Extractor',     color: 'amber' },
   ExecutiveSynthesizer: { icon: '🧠', label: 'Lyzr Executive Synthesizer', color: 'indigo' },
-  TaskDispatcher:       { icon: '📬', label: 'Lyzr Task Dispatcher',       color: 'emerald' }
+  TaskDispatcher:       { icon: '📬', label: 'Lyzr Task Dispatcher',       color: 'emerald' },
+  CalendarScheduler:    { icon: '📅', label: 'Lyzr Calendar Scheduler',    color: 'violet' }
 };
-const AGENT_ORDER = ['MemoryAgent', 'ActionExtractor', 'ExecutiveSynthesizer', 'TaskDispatcher'];
+const AGENT_ORDER = ['MemoryAgent', 'ActionExtractor', 'ExecutiveSynthesizer', 'TaskDispatcher', 'CalendarScheduler'];
 
 export function showPipelinePanel() {
   const panel = document.getElementById('pipeline-panel');
   if (!panel) return;
   panel.classList.remove('hidden');
 
-  // Reset all rows to pending
   AGENT_ORDER.forEach(agent => {
     const row = document.getElementById(`pipeline-row-${agent}`);
     if (!row) return;
@@ -175,17 +272,17 @@ function _agentRow(agent, status, message, count) {
   const { icon, label, color } = AGENT_LABELS[agent] || { icon: '⚙️', label: agent, color: 'slate' };
 
   const statusIcon = status === 'running'
-    ? `<span class="w-2 h-2 rounded-full bg-${color}-400 animate-ping inline-block"></span>`
+    ? `<span class="w-2.5 h-2.5 rounded-full bg-${color}-400 animate-ping inline-block"></span>`
     : status === 'done'
     ? `<span class="text-emerald-400 font-bold">✓</span>`
-    : `<span class="w-2 h-2 rounded-full bg-slate-700 inline-block"></span>`;
+    : `<span class="w-2.5 h-2.5 rounded-full bg-slate-700 inline-block"></span>`;
 
   const countBadge = (status === 'done' && count !== undefined)
     ? `<span class="ml-auto px-2 py-0.5 rounded-full text-[10px] font-mono bg-${color}-500/20 text-${color}-300 border border-${color}-500/30">${count}</span>`
     : '';
 
   const msgEl = message
-    ? `<p class="text-[10px] text-slate-500 font-mono mt-0.5">${message}</p>`
+    ? `<p class="text-[10px] text-slate-400 font-mono mt-0.5">${message}</p>`
     : '';
 
   return `
@@ -193,7 +290,7 @@ function _agentRow(agent, status, message, count) {
       <div class="mt-0.5 flex-shrink-0">${statusIcon}</div>
       <div class="flex-1 min-w-0">
         <div class="flex items-center gap-2">
-          <span class="text-xs font-semibold text-slate-200">${icon} ${label}</span>
+          <span class="text-xs font-semibold text-slate-200 font-mono">${icon} ${label}</span>
           ${countBadge}
         </div>
         ${msgEl}

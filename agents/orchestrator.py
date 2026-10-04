@@ -5,6 +5,7 @@ Coordinates Qdrant vector memory indexing, Lyzr agent synthesis, and natural lan
 from typing import Any
 
 from agents.action_extractor import LyzrActionExtractor
+from agents.calendar_scheduler import LyzrCalendarScheduler
 from agents.executive_synth import LyzrExecutiveSynthesizer
 from agents.memory_agent import QdrantMemoryAgent
 from agents.task_dispatcher import LyzrTaskDispatcher
@@ -16,6 +17,7 @@ class OmiMindOrchestrator:
         self.extractor = LyzrActionExtractor()
         self.synthesizer = LyzrExecutiveSynthesizer()
         self.dispatcher = LyzrTaskDispatcher()
+        self.scheduler = LyzrCalendarScheduler()
 
     def process_session(self, session_id: str, title: str, transcript_lines: list[dict[str, str]]) -> dict[str, Any]:
         """
@@ -24,6 +26,7 @@ class OmiMindOrchestrator:
         2. Extracts commitments and action items.
         3. Generates executive synthesis.
         4. Dispatches follow-up emails and Jira tickets.
+        5. Extracts calendar sync commitments and generates Google Meet/iCal links.
         """
         indexed_points = []
         for i, line in enumerate(transcript_lines):
@@ -48,6 +51,9 @@ class OmiMindOrchestrator:
         email_draft = self.dispatcher.generate_followup_email(summary, action_items)
         jira_tickets = self.dispatcher.generate_jira_tickets(action_items)
 
+        # Agent 4: Calendar scheduling
+        calendar_events = self.scheduler.extract_calendar_events(transcript_lines)
+
         return {
             "session_id": session_id,
             "title": title,
@@ -55,7 +61,8 @@ class OmiMindOrchestrator:
             "summary": summary,
             "action_items": action_items,
             "email_draft": email_draft,
-            "jira_tickets": jira_tickets
+            "jira_tickets": jira_tickets,
+            "calendar_events": calendar_events
         }
 
     def query_semantic_memory(self, query: str, limit: int = 4) -> dict[str, Any]:

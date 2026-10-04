@@ -16,7 +16,8 @@ DEMO_MEETINGS = {
             {"speaker": "Marcus (Lead Architect)", "timestamp_str": "05:40", "text": "The primary technical risk is database latency under multi-tenant load. I'll run the load testing benchmark in staging by Wednesday."},
             {"speaker": "David (CTO)", "timestamp_str": "07:10", "text": "Agreed. Let's make sure to enforce zero-trust token redaction before any logs leave the VPC. That is a critical P0 requirement."},
             {"speaker": "Sarah (CFO)", "timestamp_str": "09:30", "text": "Approved. We will go with the 128-node reserved cluster if Marcus confirms latency is under 50ms."},
-            {"speaker": "Elena (VP Product)", "timestamp_str": "11:05", "text": "I will coordinate customer rollout communications with our design team by tomorrow afternoon."}
+            {"speaker": "Elena (VP Product)", "timestamp_str": "11:05", "text": "I will coordinate customer rollout communications with our design team by tomorrow afternoon."},
+            {"speaker": "David (CTO)", "timestamp_str": "13:40", "text": "Great alignment. Let's schedule a follow-up review next Tuesday at 2 PM to verify the latency benchmarks."}
         ]
     },
     "sre_postmortem": {
@@ -31,7 +32,8 @@ DEMO_MEETINGS = {
             {"speaker": "Chloe (Security)", "timestamp_str": "03:45", "text": "The alert webhook was silenced during last week's firewall upgrade. I'll audit all security webhook routes by EOD tomorrow."},
             {"speaker": "Ravi (Database Admin)", "timestamp_str": "06:10", "text": "Transaction queues buffered properly, so zero financial data was lost. We confirmed that all database balances reconciled."},
             {"speaker": "Alex (SRE Lead)", "timestamp_str": "08:30", "text": "Action item: I will migrate all ingress certificates to automated Let's Encrypt renewal with Prometheus monitoring by Friday."},
-            {"speaker": "Vikram (VP Engineering)", "timestamp_str": "11:20", "text": "Decided: No manual certificate renewals will ever be permitted in production. Action item assigned to Alex."}
+            {"speaker": "Vikram (VP Engineering)", "timestamp_str": "11:20", "text": "Decided: No manual certificate renewals will ever be permitted in production. Action item assigned to Alex."},
+            {"speaker": "Vikram (VP Engineering)", "timestamp_str": "15:30", "text": "Let's meet on Friday at 3 PM to review the Let's Encrypt automated pipeline."}
         ]
     },
     "cs_lecture": {
