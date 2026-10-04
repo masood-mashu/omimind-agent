@@ -4,7 +4,7 @@ Centralized, typed application configuration using Pydantic BaseModel.
 Manages environment variables, Qdrant Cloud settings, Lyzr credentials, and security keys.
 """
 import os
-from typing import Optional
+
 from pydantic import BaseModel, Field
 
 # Gracefully load local .env if python-dotenv is installed
@@ -24,13 +24,13 @@ class Settings(BaseModel):
     log_level: str = Field(default="INFO", description="Logging verbosity")
 
     # Qdrant Vector Database
-    qdrant_url: Optional[str] = Field(
+    qdrant_url: str | None = Field(
         default=None,
         description="Qdrant Cloud cluster endpoint or local URL"
     )
     qdrant_host: str = Field(default="localhost", description="Qdrant fallback host")
     qdrant_port: int = Field(default=6333, description="Qdrant fallback port")
-    qdrant_api_key: Optional[str] = Field(
+    qdrant_api_key: str | None = Field(
         default=None,
         description="Qdrant Cloud API access key"
     )
@@ -40,11 +40,11 @@ class Settings(BaseModel):
     )
 
     # Lyzr Agent Studio
-    lyzr_api_key: Optional[str] = Field(
+    lyzr_api_key: str | None = Field(
         default=None,
         description="Lyzr Studio API key"
     )
-    lyzr_agent_id: Optional[str] = Field(
+    lyzr_agent_id: str | None = Field(
         default=None,
         description="Lyzr Studio Agent ID"
     )
@@ -54,13 +54,13 @@ class Settings(BaseModel):
     )
 
     # Omi Voice Wearable
-    omi_api_key: Optional[str] = Field(
+    omi_api_key: str | None = Field(
         default=None,
         description="Omi device webhook authentication key"
     )
 
     # API Security (Optional Token / Bearer Protection)
-    api_secret_key: Optional[str] = Field(
+    api_secret_key: str | None = Field(
         default=None,
         description="Optional API secret key for endpoint protection. If None, runs in open demo mode."
     )
