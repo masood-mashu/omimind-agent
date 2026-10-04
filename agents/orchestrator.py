@@ -41,17 +41,17 @@ class OmiMindOrchestrator:
             )
             indexed_points.append(p_id)
 
-        # Agent 1: Action items
+        # Agent 2: Action items (LyzrActionExtractor)
         action_items = self.extractor.extract_from_transcript(transcript_lines)
 
-        # Agent 2: Executive synthesis
+        # Agent 3: Executive synthesis (LyzrExecutiveSynthesizer)
         summary = self.synthesizer.synthesize_meeting(title, transcript_lines)
 
-        # Agent 3: Task dispatching
+        # Agent 4: Task dispatching (LyzrTaskDispatcher)
         email_draft = self.dispatcher.generate_followup_email(summary, action_items)
         jira_tickets = self.dispatcher.generate_jira_tickets(action_items)
 
-        # Agent 4: Calendar scheduling
+        # Agent 5: Calendar scheduling (LyzrCalendarScheduler)
         calendar_events = self.scheduler.extract_calendar_events(transcript_lines)
 
         return {

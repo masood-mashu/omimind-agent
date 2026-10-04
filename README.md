@@ -235,7 +235,62 @@ tests/test_task_dispatcher.py::TestLyzrTaskDispatcher (3 tests)        PASSED
 
 ---
 
+## 🏁 Build Track
+
+**Track:** Meeting & Lecture Intelligence
+
+> *"Voice-to-insight engines with semantic retrieval, automated action-item extraction and Q&A over past meetings."*  
+> — Official HiDevs Hackathon Track Description
+
+OmiMind was built end-to-end for the **Meeting & Lecture Intelligence** track of the **Stop Prompting, Solo Agents Hackathon 2026** (HiDevs × AI House × Lyzr × Qdrant × Omi).
+
+---
+
+## 🎬 Demo Video
+
+> 📹 **[Watch the 5-minute OmiMind Demo (YouTube/Loom)](ADD_DEMO_VIDEO_LINK_HERE)**  
+>  
+> The video demonstrates:  
+> - 🎙️ Omi voice ingestion via webhook  
+> - ⚡ Qdrant vector storage with 128-dim embeddings  
+> - 🐝 Live 5-agent SSE pipeline (pulsing → ✓ animations)  
+> - 🔍 Semantic Q&A search with relevance scores  
+> - 📅 Auto-generated Google Calendar invite + `.ics` download
+
+---
+
+## 📋 Submission Form Quick-Reference
+
+> Copy-paste these descriptions directly into the HiDevs submission form fields.
+
+### Omi Usage
+OmiMind integrates directly with Omi's real-time voice pipeline via two official webhook endpoints:
+- `POST /omi/conversation` — fires after a conversation ends; ingests full `transcript_segments[]` with speaker diarisation and structured overview into Qdrant vector memory.
+- `POST /omi/realtime` — fires with live audio chunks while the user speaks; incrementally indexes each utterance.
+- `POST /api/omi-webhook` — accepts Omi's native `{"segments": [...]}` format with auto speaker attribution.
+
+All three endpoints respond with `200 OK` within `< 50ms` to prevent Omi mobile timeouts. Verified and tested against the real Omi mobile app with live spoken voice.
+
+### Qdrant Usage
+Every spoken utterance is embedded as a **128-dimensional L2-normalized dense vector** and stored persistently in the `omi_ambient_memory` collection on **Qdrant Cloud**. Retrieval uses a custom **hybrid scoring engine: 60% normalized cosine similarity + 40% lexical stem overlap** — producing per-query dynamic relevance scores with speaker attribution (e.g., *"ScaleCloud Net-45"* → Sarah (CFO): **94.0% match**). Memory persists across all cold starts, pre-seeded with 105+ production vectors. The `/api/forget` endpoint provides GDPR-style session vector purge.
+
+### Lyzr Usage
+Five specialized Lyzr agents execute sequentially and stream their status live via **Server-Sent Events (SSE)**, making the entire workflow observable in real time:
+1. **MemoryAgent** — indexes utterances into Qdrant Cloud with timestamp and speaker metadata
+2. **ActionExtractor** — extracts verbal commitments, assignees, deadlines, and urgency (`P0`/`High`)
+3. **ExecutiveSynthesizer** — builds confirmed decisions, blockers, and strategic briefing
+4. **TaskDispatcher** — drafts follow-up email and generates Jira tickets (`OMI-1`, `OMI-2`, ...)
+5. **CalendarScheduler** — detects meeting intent, generates Google Meet URLs and RFC 5545 `.ics` files
+
+The `/ask` endpoint additionally calls **Lyzr Studio Cloud** (`LYZR_AGENT_ID`) for grounded Q&A synthesis over retrieved Qdrant context. The MCP server exposes all 4 OmiMind tools to Claude Desktop, Cursor, and Antigravity.
+
+### Project Description
+OmiMind is an autonomous, memory-backed Chief of Staff for the Omi AI Wearable. It continuously ingests ambient meeting conversations and lectures, indexes every utterance into Qdrant Cloud for permanent semantic recall, and orchestrates a Lyzr 5-Agent Swarm that streams live execution events. The result: a fully autonomous pipeline that extracts commitments and deadlines, synthesizes executive briefings, dispatches Jira engineering tickets, and schedules Google Calendar events with Meet links — all triggered by voice alone. Live at [omimind-agent.vercel.app](https://omimind-agent.vercel.app/).
+
+---
+
 ## 👥 Author & Hackathon Details
 - **Author**: Mohammed Masood ([@masood-mashu](https://github.com/masood-mashu))
 - **Hackathon**: [Stop Prompting. Code Solo Agents (2026)](https://app.hidevs.xyz/hackathons/stop-prompting-solo-agents-hackathon-2026)
 - **Partners**: HiDevs, Lyzr AI, Qdrant, Omi
+

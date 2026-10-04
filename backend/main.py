@@ -496,7 +496,7 @@ def official_ask_endpoint(body: dict[str, Any] = Body(...)):
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
     recall_res = orchestrator.query_semantic_memory(query=question, limit=int(body.get("k", 5)))
-    matches = recall_res.get("recalled_memories", [])
+    matches = recall_res.get("matches", [])
     context = [f"[{m.get('speaker', 'Speaker')}]: {m.get('text', '')}" for m in matches]
 
     # Live Lyzr Agent Studio integration (Section 7 of Official Hackathon Guide)
