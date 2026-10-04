@@ -164,7 +164,7 @@ class OmiWebhookRequest(BaseModel):
 
 def parse_transcript(transcript: str, default_speaker: str = "User") -> tuple[list[dict], set]:
     raw_blocks = re.split(r"\n+", transcript.strip())
-    speaker_pattern = re.compile(r"^([A-Z][A-Za-z0-9\s\.\(\)\-_]{1,35}):\s*(.+)$")
+    speaker_pattern = re.compile(r"^(?:\[([\d\:\.]+)\]\s*)?([A-Z][A-Za-z0-9\s\.\(\)\-_]{1,35}):\s*(.+)$")
     lines = []
     detected_speakers = set()
     current_speaker = default_speaker
@@ -175,11 +175,14 @@ def parse_transcript(transcript: str, default_speaker: str = "User") -> tuple[li
             continue
         m = speaker_pattern.match(block_str)
         if m:
-            current_speaker = m.group(1).strip()
-            content = m.group(2).strip()
+            timestamp_match = m.group(1)
+            current_speaker = m.group(2).strip()
+            content = m.group(3).strip()
             detected_speakers.add(current_speaker)
+            timestamp_str = timestamp_match if timestamp_match else time.strftime("%H:%M:%S", time.gmtime())
         else:
             content = block_str
+            timestamp_str = time.strftime("%H:%M:%S", time.gmtime())
 
         sentences = re.split(r"(?<=[.?!])\s+(?=[A-Z0-9\"'\-])", content)
         for s in sentences:
@@ -187,7 +190,7 @@ def parse_transcript(transcript: str, default_speaker: str = "User") -> tuple[li
             if len(s_clean) > 3:
                 lines.append({
                     "speaker": current_speaker,
-                    "timestamp_str": time.strftime("%H:%M:%S", time.gmtime()),
+                    "timestamp_str": timestamp_str,
                     "text": s_clean
                 })
 

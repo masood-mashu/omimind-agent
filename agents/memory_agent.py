@@ -247,7 +247,7 @@ class QdrantMemoryAgent:
         if conditions:
             query_filter = Filter(must=conditions)
 
-        candidate_limit = max(10, limit * 2)
+        candidate_limit = max(40, limit * 10)
         search_results = self.client.query_points(
             collection_name=COLLECTION_NAME,
             query=query_vector,
