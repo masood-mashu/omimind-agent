@@ -1,125 +1,99 @@
-# ⚡ OmiMind: Single Execution Flow & Worked Examples
+# OmiMind Execution Flow
 
-This document details the end-to-end execution lifecycle of **OmiMind**—from the millisecond ambient voice is spoken into the **Omi Wearable / Mobile App**, to vector embedding in **Qdrant Cloud**, multi-agent orchestration across the **Lyzr 5-Agent Swarm**, and automated dispatch to **Gmail, Jira, and Google Calendar**.
+This document describes the current runtime path from transcript capture to searchable memory and user-visible outputs.
 
----
+For the standalone diagrams, see:
 
-## 1. End-to-End Sequence Diagram
+- [Architecture](ARCHITECTURE.md)
+- [Data flow](DATA_FLOW.md)
+- [Sequence diagram](SEQUENCE_DIAGRAM.md)
 
-![OmiMind Sequence Diagram](assets/omimind_sequence_diagram.jpg)
+## 1. Input paths
+
+OmiMind accepts three kinds of input:
+
+1. **Preset demo meetings** through `POST /api/process-stream`.
+2. **Browser microphone or custom text** through `POST /api/custom-voice-stream`.
+3. **Omi transcript webhooks** through the protected `/api/omi-webhook`, `/omi/conversation`, and `/omi/realtime` routes.
+
+The browser microphone uses the Web Speech API where supported. The server receives transcript text and speaker metadata; it does not process raw audio.
+
+## 2. Preset/custom processing flow
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as 🎙️ You (Speaker)
-    participant Omi as 📱 Omi App / Wearable
-    participant Backend as ⚡ FastAPI Backend (Vercel)
-    participant Qdrant as 🗄️ Qdrant Cloud Cluster
-    participant Swarm as 🐝 Lyzr 5-Agent Swarm
-    participant UI as 💻 Live Dashboard (SSE)
-    actor External as 🔴 Gmail / Google Meet / Jira
+    actor User
+    participant UI as Browser dashboard
+    participant API as FastAPI
+    participant Pipeline as Local processing stages
+    participant Q as Qdrant
 
-    %% Phase 1: Ingestion
-    Note over User,Omi: Phase 1: Ambient Capture
-    User->>Omi: Speaks meeting dialog aloud
-    Omi->>Backend: POST /omi/conversation (transcript_segments + speaker metadata)
-    Backend-->>Omi: 200 OK (Instant acknowledgment < 50ms)
-
-    %% Phase 2: Vectorization
-    Note over Backend,Qdrant: Phase 2: Vector Embedding & Storage
-    Backend->>Backend: Tokenize & generate 128-dim normalized dense vectors
-    Backend->>Qdrant: Upsert points into `omi_ambient_memory` (with timestamp & speaker metadata)
-    Qdrant-->>Backend: Confirmed (105+ points persistent)
-
-    %% Phase 3: Swarm Pipeline
-    Note over Backend,Swarm: Phase 3: Multi-Agent Parallel Pipeline
-    Backend->>UI: Open SSE Stream (/api/process-stream)
-    
-    Backend->>Swarm: Trigger Agent 1: MemoryAgent
-    Swarm-->>UI: SSE event: MemoryAgent [DONE] (Indexed vectors badge)
-    
-    Backend->>Swarm: Trigger Agent 2: ActionExtractor (NER)
-    Swarm->>Swarm: Extract assignees, deadlines, and urgency ratings
-    Swarm-->>UI: SSE event: ActionExtractor [DONE] (Action items found)
-    
-    Backend->>Swarm: Trigger Agent 3: ExecutiveSynthesizer
-    Swarm->>Swarm: Extract confirmed decisions and operational blockers
-    Swarm-->>UI: SSE event: ExecutiveSynthesizer [DONE] (Briefing ready)
-    
-    Backend->>Swarm: Trigger Agent 4: TaskDispatcher
-    Swarm->>Swarm: Draft Executive Email + Formulate Jira Tickets
-    Swarm-->>UI: SSE event: TaskDispatcher [DONE] (Email & Jira ready)
-    
-    Backend->>Swarm: Trigger Agent 5: CalendarScheduler
-    Swarm->>Swarm: Detect meeting intent -> Generate RFC 5545 .ics & Google Meet link
-    Swarm-->>UI: SSE event: CalendarScheduler [DONE] (Meeting scheduled)
-
-    %% Phase 4: Delivery
-    Note over UI,External: Phase 4: Autonomous Delivery
-    UI->>UI: Populate Kanban + Dossier + Canvas Audio Waveform
-    User->>UI: Clicks "Send via Gmail"
-    UI->>External: Opens Gmail Web Compose with prefilled To, Subject, and Body!
-    User->>UI: Queries Semantic Search Bar
-    UI->>Qdrant: 400ms Debounced Cosine Search
-    Qdrant-->>UI: Recalls exact quote with speaker tag and relevance score!
+    User->>UI: Select preset or enter transcript
+    UI->>API: POST /api/process-stream or /api/custom-voice-stream
+    API-->>UI: SSE: MemoryAgent running
+    API->>Pipeline: Index each utterance
+    Pipeline->>Q: Upsert vector and metadata
+    Q-->>Pipeline: Stored point IDs
+    API-->>UI: SSE: MemoryAgent done
+    API->>Pipeline: Extract action items
+    API-->>UI: SSE: ActionExtractor done
+    API->>Pipeline: Build executive synthesis
+    API-->>UI: SSE: ExecutiveSynthesizer done
+    API->>Pipeline: Generate email and Jira-style tickets
+    API-->>UI: SSE: TaskDispatcher done
+    API->>Pipeline: Generate follow-up calendar events
+    API-->>UI: SSE: CalendarScheduler done
+    API-->>UI: SSE: complete with dossier
+    UI-->>User: Render summary, tasks, email, tickets, and calendar tabs
 ```
 
----
+The five stages execute sequentially in the current implementation. They are modular local Python components coordinated by `OmiMindOrchestrator`.
 
-## 2. Execution Timeline & Latency Breakdown
+## 3. Memory recall flow
 
-| Step | Operation | Target Duration | Description |
-|---|---|---|---|
-| **t = 0.0s** | **Speech Audio Capture** | Live | User speaks into Omi wearable or smartphone microphone. |
-| **t = 0.2s** | **Webhook Trigger** | `< 50ms` | Omi fires `POST /omi/conversation`. Backend returns `200 OK` instantly to prevent mobile timeouts. |
-| **t = 0.4s** | **Dense Vector Embedding** | `~150ms` | Words tokenized, stop-words filtered, L2-normalized dense embeddings computed and upserted to Qdrant Cloud. |
-| **t = 0.8s** | **SSE Swarm Stream** | `~1.2s` | Server-Sent Events stream opens on browser dashboard; all 5 agents pulse and execute sequentially. |
-| **t = 2.0s** | **Output Rendering** | `< 100ms` | Kanban board populated, executive dossier formatted, Jira cards created, calendar invite generated. |
-| **t = 2.2s** | **1-Click Dispatch** | Instant | User clicks "Send via Gmail" (direct prefilled compose tab) or searches Qdrant memory. |
+`POST /api/query` embeds the question, searches the Qdrant collection, and applies the local hybrid ranking step:
 
----
+- 60% normalized vector similarity
+- 40% lexical stem overlap
+- Maximum query limit of 20 results
 
-## 3. Real-World Worked Examples (Live Tested)
+The dashboard debounces search input by 400 ms and displays the top quote with its speaker, timestamp, and relevance score.
 
-### Worked Example 1: Enterprise Security & Infrastructure Sync
-#### 🎙️ Spoken Transcript:
-> *"Team sync on our Enterprise Security and Infrastructure roll-out.  
-> First, Priya, please complete the SOC2 Type II compliance audit checklist by Tuesday at 2 PM.  
-> Second, Liam, we must configure Cloudflare rate limiting to 500 requests per minute on all public API endpoints before Friday.  
-> As a crucial budget decision, we approved twelve thousand dollars for our dedicated GPU inference cluster.  
-> Finally, let’s schedule a Security Architecture Review this Thursday at 11 AM to sign off on the production deployment."*
+The protected `POST /ask` endpoint performs the same retrieval and can send the retrieved context to Lyzr Studio when Lyzr credentials are configured. Without Lyzr credentials, it uses the local synthesis fallback.
 
-#### 📦 Output Artifacts Generated:
-1. **MemoryAgent**:
-   - 5 vector points indexed into `omi_ambient_memory`.
-2. **ActionExtractor**:
-   - **Task 1**: `Priya` — Complete SOC2 Type II checklist (Deadline: `Tuesday at 2 PM`, Priority: `P0 / Critical`).
-   - **Task 2**: `Liam` — Configure Cloudflare rate limiting to 500 req/min (Deadline: `Friday`, Priority: `High`).
-3. **ExecutiveSynthesizer**:
-   - **Decision**: Approved $12,000 budget for dedicated GPU inference cluster.
-   - **Blockers**: 0 critical blockers flagged.
-4. **TaskDispatcher**:
-   - **Follow-up Email**: Formatted executive email addressed to team leads summarizing compliance and budget sign-offs.
-   - **Jira Tickets**: `OMI-1` (SOC2 Audit) & `OMI-2` (Cloudflare Rate Limiting).
-5. **CalendarScheduler**:
-   - **Event**: *Security Architecture Review*
-   - **Time**: Thursday at 11:00 AM
-   - **Links**: Prefilled Google Meet URL + downloadable `security_review.ics` (RFC 5545 format).
-6. **Qdrant Semantic Recall Verification**:
-   - Search: `"SOC2 compliance audit"` ➔ Recalls Priya's exact quote with **0.7139 cosine similarity (71% match)**.
-   - Search: `"migrate vector database"` ➔ Recalls Marcus's AWS migration task with **0.8058 cosine similarity (81% match)**.
+## 4. Omi webhook flow
 
----
+```text
+Omi transcript segments
+          ↓
+Protected FastAPI webhook
+          ↓
+Speaker/timestamp normalization
+          ↓
+Embedding and Qdrant upsert
+          ↓
+Session-level indexed response
+```
 
-### Worked Example 2: Q4 Strategy & Budget Planning
-#### 🎙️ Spoken Transcript:
-> *"Elena: We need to align on the Q4 budget allocation before the board meeting next Tuesday.  
-> Marcus: Infrastructure costs have increased by 22% due to GPU scaling for the new voice agent models.  
-> Sarah: I will review our ScaleCloud vendor contract by Thursday to negotiate Net-45 payment terms.  
-> Elena: Approved. Let's schedule an Executive Sync this Friday at 4 PM to finalize the proposal."*
+Protected routes require `API_SECRET_KEY` using either `x-api-key` or a Bearer token. They are disabled when the secret is not configured.
 
-#### 📦 Output Artifacts Generated:
-1. **Action Items**: Sarah (Vendor contract renegotiation by Thursday), Marcus (GPU scaling report).
-2. **Executive Decision**: Approved negotiation of Net-45 payment terms; locked board review date.
-3. **Calendar**: Executive Sync scheduled for Friday 4:00 PM with Google Meet link.
-4. **1-Click Gmail Action**: Opens Gmail compose prefilled to `sarah@company.com` with meeting action items.
+## 5. User-controlled outputs
+
+The server generates data for the dashboard. External actions remain user-controlled:
+
+- Gmail compose opens only after the user clicks the email action.
+- Google Calendar links open only after the user clicks the event action.
+- `.ics` files are generated in the browser for download.
+- Jira output is a structured payload for review or import; no Jira write is performed by this application.
+
+## 6. Verification
+
+The current repository verification command is:
+
+```bash
+pytest -q --cov=agents --cov=backend --cov-report=term-missing --cov-fail-under=80
+ruff check .
+```
+
+The latest verified baseline is 58 passing tests with 87.77% coverage and passing Ruff checks.

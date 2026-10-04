@@ -1,73 +1,79 @@
-# 🎙️ HiDevs Hackathon: Track 1 (Meeting & Lecture Intelligence) Deep-Dive
+# HiDevs Track 1: Meeting & Lecture Intelligence
 
-This document provides a comprehensive analysis of **Track 1: Meeting & Lecture Intelligence** for the HiDevs Hackathon (AI House × HiDevs × Lyzr × Qdrant × Omi), detailing the problem statement, mandatory architecture, and how **OmiMind** addresses every single requirement and evaluation rubric.
+This document maps OmiMind to the official Track 1 requirements for the [Stop Prompting. Code Solo Agents Hackathon](https://app.hidevs.xyz/hackathons/stop-prompting-solo-agents-hackathon-2026).
 
----
+## 1. Official requirements
 
-## 1. Track Overview & Core Mandate
+The official page describes Track 1 as:
 
-> **Track Definition (Official Guide)**:  
-> *"Voice-to-insight engines with semantic retrieval, automated action-item extraction and Q&A over past meetings."*
+> Voice-to-insight with semantic retrieval and action-item extraction.
 
-### The Problem in Meeting & Lecture Intelligence
-In fast-paced organizations and academic environments:
-- **Ephemeral Spoken Conversations**: Verbal decisions, commitments, and deadlines vanish the moment the conversation ends.
-- **Action Item Drift**: Tasks agreed upon in meetings lack explicit owners or deadlines, leading to project delays.
-- **Search Impossibility**: Searching through audio recordings is slow and friction-heavy.
-- **Manual Note-Taking Friction**: Manual notes distract participants from active listening.
+The hackathon page also requires every project to integrate:
 
----
+- **Omi** for real-time voice capture or ambient input
+- **Qdrant** for persistent vector memory and semantic retrieval
+- **Lyzr** for multi-agent orchestration, reasoning, and task execution
 
-## 2. The 3 Mandatory Tech Pillars & How OmiMind Delivers
+The submission requirements currently shown on the official page are:
 
-The hackathon requires connecting all three technologies in a **single connected loop**:
+- Solo participation
+- Public GitHub repository
+- Setup instructions and an architecture diagram in the README
+- Demo video of no more than five minutes
+- Submission through HiDevs by **October 13, 2026 at 11:59 PM IST**
 
-```
-[ 🎙️ Omi: Ambient Voice Ingestion ]
-                 ⬇️
-[ ⚡ Qdrant: Semantic Retrieval & Memory ]
-                 ⬇️
-[ 🐝 Lyzr: Multi-Agent Reasoning Swarm ]
-```
+## 2. Current implementation mapping
 
-| Technology | Role Required | OmiMind Implementation |
+| Requirement | Current implementation | Status |
 |---|---|---|
-| **Omi** | Real-time ambient audio capture | Native webhook endpoints (`/omi/conversation` & `/omi/realtime`) ingesting transcript segments, speaker diarisation, and timestamps. |
-| **Qdrant** | Persistent vector memory & semantic retrieval | AWS Qdrant Cloud cluster (`omi_ambient_memory`) running 128-dim dense normalized vectors with hybrid 60% cosine + 40% lexical stem search. |
-| **Lyzr** | Multi-agent reasoning swarm | 5 specialized agents (MemoryAgent, ActionExtractor, ExecutiveSynthesizer, TaskDispatcher, CalendarScheduler) + Lyzr Studio Cloud inference (`6ac2646b...`). |
+| Voice-first input | Browser microphone transcript capture and Omi-compatible webhook routes | Implemented |
+| Semantic retrieval | Qdrant collection `omi_ambient_memory`, 128-dimensional vectors, hybrid vector/lexical ranking | Implemented when Qdrant is configured; local fallback is available |
+| Action-item extraction | Deterministic commitment, deadline, assignee, and priority rules in `agents/action_extractor.py` | Implemented |
+| Meeting/lecture synthesis | Decision, risk, participant, and executive-summary generation in `agents/executive_synth.py` | Implemented |
+| Contextual Q&A | `/api/query` local recall and protected `/ask` endpoint with optional Lyzr Studio synthesis | Implemented |
+| Lyzr integration | Lyzr Studio is called by `/ask` when credentials are configured | Partial: the main five-stage demo pipeline is local Python, not a remote Lyzr workflow |
+| Observable execution | SSE events for the five sequential processing stages | Implemented |
+| Privacy controls | Protected webhook, Q&A, seed, and deletion routes; session/point deletion | Implemented; deployment must configure `API_SECRET_KEY` |
 
----
+## 3. End-to-end product flow
 
-## 3. How OmiMind Solves the Core Requirements
+```text
+Omi or microphone transcript
+              ↓
+FastAPI validation and normalization
+              ↓
+Qdrant vector memory
+              ↓
+Local processing stages:
+  memory indexing → action extraction → synthesis
+  → task dispatch → calendar generation
+              ↓
+Dashboard, semantic recall, and user-controlled exports
+```
 
-### 1. Automated Action-Item Extraction (`ActionExtractor`)
-- Extracts owners via Named Entity Recognition (NER).
-- Detects explicit deadlines (e.g., *"Tuesday at 2 PM"*, *"before Friday"*).
-- Assigns priority ratings (`P0 / Critical`, `High`, `Medium`).
-- Renders an interactive Kanban board with status toggles.
+See the detailed [execution flow](EXECUTION_FLOW.md) and the standalone [architecture](ARCHITECTURE.md), [data-flow](DATA_FLOW.md), and [sequence](SEQUENCE_DIAGRAM.md) diagrams.
 
-### 2. Grounded Q&A Over Past Meetings (`MemoryAgent` + `/ask`)
-- **Instant Search-as-You-Type (`/api/query`)**: 400ms debounced vector recall showing verbatim quotes, speaker attribution, and cosine relevance scores (e.g. `81% Match (0.8058)`).
-- **Conversational Synthesis (`/ask`)**: Lyzr Studio Cloud Agent synthesizes grounded answers using the retrieved Qdrant context snippets.
+## 4. Evidence currently available
 
-### 3. Executive Dossier & Strategic Synthesis (`ExecutiveSynthesizer`)
-- Categorizes **Confirmed Decisions** vs. **Identified Blockers & Risks**.
-- Tracks participant engagement and meeting intent.
+- Public repository: [github.com/masood-mashu/omimind-agent](https://github.com/masood-mashu/omimind-agent)
+- Live dashboard: [omimind-agent.vercel.app](https://omimind-agent.vercel.app/)
+- Automated verification: 58 tests passing, 87.77% coverage, Ruff passing
+- Local end-to-end dashboard flow verified
+- Production preset flow and semantic recall verified
+- README includes setup instructions and architecture documentation links
 
-### 4. Closing the Loop (`TaskDispatcher` & `CalendarScheduler`)
-- **1-Click Send via Gmail**: Pre-fills Gmail web compose with drafted email, subject, and recipient.
-- **Jira Engineering Tickets**: Auto-formats tickets (`OMI-1`, `OMI-2`) ready for copy/import.
-- **RFC 5545 Calendar Invites**: Extracts meeting times and generates Google Meet links + downloadable `.ics` files.
-- **Model Context Protocol (MCP)**: Native `mcp_server.py` exposing OmiMind tools to Claude Desktop, Cursor, and Antigravity.
+## 5. Submission checklist
 
----
+Before submitting, verify the following items in the HiDevs form:
 
-## 4. Evaluation Rubric & Competitive Advantage
+- [ ] Repository is public and contains the latest commit.
+- [ ] `API_SECRET_KEY` and provider credentials are configured in the deployment environment.
+- [ ] Omi webhook integration is demonstrated or clearly described with its protected routes.
+- [ ] Qdrant persistence is demonstrated with a configured Qdrant URL and API key.
+- [ ] Lyzr Studio usage is demonstrated through `/ask`, or the main orchestration is upgraded to a Lyzr-managed workflow.
+- [ ] Demo video is no longer than five minutes and shows the complete voice → memory → reasoning → output loop.
+- [ ] Submission is completed before October 13, 2026 at 11:59 PM IST.
 
-| Criterion | Hackathon Weight | OmiMind Execution |
-|---|---|---|
-| **Working Software** | High (60%+ score) | Live on Vercel ([omimind-agent.vercel.app](https://omimind-agent.vercel.app/)) with 105+ active cloud vectors. |
-| **Observable Agent Workflows** | Explicit Bonus | Real-time Server-Sent Events (SSE) stream animating all 5 agents on the live dashboard. |
-| **Agent Specialization** | Explicit Bonus | 5 dedicated modular agents coordinated by central orchestrator. |
-| **Testing & Reliability** | Code Quality Gate | 55 automated unit/integration tests with a 100% green pass rate (`pytest tests/ -v`). |
-| **Real Device Verification** | Authenticity | Tested and verified with real spoken voice from the Omi mobile app. |
+## 6. Important positioning note
+
+The repository should describe the five dashboard stages as a local modular processing pipeline and describe Lyzr as the optional external grounded-Q&A integration unless the implementation is changed to execute those stages through Lyzr. This distinction keeps the submission technically accurate while still demonstrating the required Omi, Qdrant, and Lyzr integration points.
