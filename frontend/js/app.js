@@ -97,28 +97,41 @@ window.searchMemory = async function() {
 window.toggleMic = async function() {
   const statusEl = document.getElementById('mic-status');
   const btnText = document.getElementById('mic-btn-text');
+  const btn = document.getElementById('btn-mic');
   const input = document.getElementById('live-voice-input');
 
   if (!voiceEngine) {
     voiceEngine = setupVoiceCapture({
       onTranscript: (t) => {
-        if (input) input.value = t;
+        if (input) {
+          input.value = t;
+          input.scrollTop = input.scrollHeight;
+        }
       },
       onStatus: (s) => {
         if (statusEl) statusEl.innerText = s;
         if (s.includes('Listening')) {
           if (btnText) btnText.innerText = 'Stop Mic';
+          if (btn) {
+            btn.className = "flex-1 py-2 px-3 rounded-xl border border-rose-500/60 bg-rose-500/20 hover:bg-rose-500/30 text-xs font-medium transition flex items-center justify-center gap-2 text-rose-300 shadow-lg shadow-rose-500/20 animate-pulse";
+          }
           isAudioActive = true;
-          ui.showToast('Omi Ambient Voice Stream active');
+          ui.showToast('Microphone active: Streaming ambient voice...');
         } else {
           if (btnText) btnText.innerText = 'Record Voice';
+          if (btn) {
+            btn.className = "flex-1 py-2 px-3 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-medium transition flex items-center justify-center gap-2 text-cyan-300";
+          }
           isAudioActive = false;
         }
+      },
+      onError: (err) => {
+        ui.showToast(err.message || 'Microphone error', 'warning');
       }
     });
   }
 
-  voiceEngine.toggle();
+  await voiceEngine.toggle();
 };
 
 // ─── Ambient Audio Waveform Canvas Animation Loop ─────────────────────────────
@@ -135,7 +148,21 @@ function initWaveformCanvas() {
     const height = canvas.height;
     const mid = height / 2;
 
-    const baseAmp = isAudioActive ? 12 : 2.5;
+    let baseAmp = isAudioActive ? 12 : 2.5;
+
+    // React in real-time to microphone volume frequencies if available
+    if (voiceEngine && voiceEngine.getAudioFrequencyData) {
+      const freq = voiceEngine.getAudioFrequencyData();
+      if (freq && freq.length > 0) {
+        let sum = 0;
+        for (let i = 0; i < freq.length; i++) sum += freq[i];
+        const avg = sum / freq.length;
+        if (avg > 2) {
+          baseAmp = Math.max(baseAmp, avg * 0.35);
+        }
+      }
+    }
+
     const speed = isAudioActive ? 0.08 : 0.02;
     step += speed;
 
