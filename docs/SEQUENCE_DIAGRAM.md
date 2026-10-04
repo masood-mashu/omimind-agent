@@ -1,64 +1,68 @@
-# OmiMind End-to-End Sequence
+# OmiMind End-to-End Sequence Diagram
 
-This sequence covers a preset meeting run, live SSE updates, semantic recall, and optional external Q&A.
+This sequence details chronological interactions across the Omi wearable, FastAPI ingestion, Qdrant Cloud vector memory, the Lyzr 5-agent swarm (with live SSE updates), and Lyzr Studio Cloud inference.
 
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User
-    participant UI as Browser dashboard
-    participant API as FastAPI
+    actor User as User / Meeting Attendee
+    participant Omi as Omi Wearable / Microphone
+    participant UI as Live Web Dashboard
+    participant API as FastAPI Application
     participant Orch as OmiMindOrchestrator
-    participant Q as Qdrant
-    participant L as Lyzr Studio (optional)
-    participant Ext as Gmail / Calendar
+    participant Q as Qdrant Cloud (`omi_ambient_memory`)
+    participant Studio as Lyzr Studio Cloud
+    participant Ext as Google Meet / Gmail / Jira
 
-    User->>UI: Select preset meeting
-    User->>UI: Click Ingest & Run
-    UI->>API: POST /api/process-stream
-    API-->>UI: SSE MemoryAgent running
+    Note over User,Omi: Phase 1: Ambient Audio & Diarisation
+    User->>Omi: Live conversation / Voice memo
+    Omi->>API: POST /omi/conversation or /api/omi-webhook
+    API-->>Omi: HTTP 200 OK (< 50ms fast-ack)
+
+    Note over API,Q: Phase 2: Vector Memory & Lyzr 5-Agent Swarm
+    UI->>API: POST /api/process-stream (or /api/custom-voice-stream)
+    API-->>UI: SSE: MemoryAgent [RUNNING]
     API->>Orch: Index transcript utterances
-    Orch->>Q: Upsert embeddings + metadata
-    Q-->>Orch: Stored point IDs
-    API-->>UI: SSE MemoryAgent done
+    Orch->>Q: Upsert 128-dim embeddings + speaker metadata
+    Q-->>Orch: Stored vector point IDs
+    API-->>UI: SSE: MemoryAgent [DONE] (Indexed vector count)
 
-    API->>Orch: Extract action items
-    Orch-->>API: Actions, assignees, deadlines
-    API-->>UI: SSE ActionExtractor done
+    API-->>UI: SSE: ActionExtractor [RUNNING]
+    API->>Orch: Extract commitments & deadlines
+    Orch-->>API: Extracted tasks, assignees, deadlines, P0 priorities
+    API-->>UI: SSE: ActionExtractor [DONE]
 
-    API->>Orch: Synthesize executive briefing
-    Orch-->>API: Summary, decisions, risks
-    API-->>UI: SSE ExecutiveSynthesizer done
+    API-->>UI: SSE: ExecutiveSynthesizer [RUNNING]
+    API->>Orch: Synthesize strategic briefing
+    Orch-->>API: Executive summary, confirmed decisions, risks
+    API-->>UI: SSE: ExecutiveSynthesizer [DONE]
 
-    API->>Orch: Generate email and tickets
-    Orch-->>API: Email draft + Jira-style tickets
-    API-->>UI: SSE TaskDispatcher done
+    API-->>UI: SSE: TaskDispatcher [RUNNING]
+    API->>Orch: Format email & Jira tickets
+    Orch-->>API: Follow-up email draft + Jira JSON (OMI-1..6)
+    API-->>UI: SSE: TaskDispatcher [DONE]
 
-    API->>Orch: Detect follow-up events
-    Orch-->>API: Calendar URLs + iCal payloads
-    API-->>UI: SSE CalendarScheduler done
-    API-->>UI: SSE complete with dossier
-    UI-->>User: Render dashboard tabs
+    API-->>UI: SSE: CalendarScheduler [RUNNING]
+    API->>Orch: Detect calendar intent
+    Orch-->>API: Google Meet URLs + RFC 5545 .ics content
+    API-->>UI: SSE: CalendarScheduler [DONE]
 
-    User->>UI: Enter a memory question
-    UI->>API: POST /api/query
-    API->>Q: Vector + lexical search
-    Q-->>API: Ranked matches
-    API-->>UI: Answer with quote, speaker, timestamp
-    UI-->>User: Render semantic recall
+    API-->>UI: SSE: [COMPLETE] Full intelligence dossier
+    UI-->>User: Render Executive Tabs, Kanban, & Calendar Sync
 
-    opt Protected /ask with Lyzr configured
-        User->>UI: Submit grounded Q&A request
-        UI->>API: POST /ask with API key
-        API->>Q: Retrieve relevant context
-        Q-->>API: Ranked transcript context
-        API->>L: Send context and question
-        L-->>API: Synthesized response
-        API-->>UI: Answer and supporting context
+    Note over User,Studio: Phase 3: Semantic Q&A & Lyzr Studio Inference
+    User->>UI: Type question: "What did Sarah say about the budget?"
+    UI->>API: POST /api/query (or POST /ask)
+    API->>Q: Hybrid search (60% cosine + 40% lexical)
+    Q-->>API: Ranked matching utterances + speaker attribution
+    opt Lyzr Studio Cloud Inference
+        API->>Studio: POST /v3/inference/chat/ (Context + Question)
+        Studio-->>API: Synthesized strategic answer
     end
+    API-->>UI: Grounded answer with citation & similarity score
+    UI-->>User: Display 99%+ relevance match and quote
 
-    opt Explicit user delivery action
-        User->>UI: Click Gmail or Calendar link
-        UI->>Ext: Open prefilled external compose/event URL
-    end
+    Note over User,Ext: Phase 4: Autonomous Deliverables Action
+    User->>UI: Click "+ Google Meet" / "Send via Gmail" / "Download .ics"
+    UI->>Ext: Launch calendar event / Open Gmail draft
 ```

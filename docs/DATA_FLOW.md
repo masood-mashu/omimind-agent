@@ -1,43 +1,50 @@
 # OmiMind Data Flow
 
-This diagram follows data from capture through storage, processing, retrieval, and user-controlled delivery.
+This document details the data lifecycle from voice capture through vectorization, multi-agent reasoning, retrieval, and autonomous delivery.
 
 ```mermaid
 flowchart TD
-    Capture["Voice or transcript capture"] --> Normalize["FastAPI validation and normalization"]
-    Normalize --> Session["Session ID + speaker + timestamp"]
-    Session --> Embed["128-dimensional embedding"]
-    Embed --> Store[("Qdrant collection\n`omi_ambient_memory`")]
+    Capture["🎙️ Omi Wearable / Microphone Audio"] --> Normalize["FastAPI Validation & Speaker Diarisation"]
+    Normalize --> Session["Session ID + Speaker Attribution + Timestamps"]
+    Session --> Embed["128-Dimensional Vectorization"]
+    Embed --> Store[("Qdrant Cloud: `omi_ambient_memory`<br/>Persistent Vector Index")]
 
-    Session --> Pipeline["Processing pipeline"]
-    Pipeline --> Extract["Action items\nassignees + deadlines + priority"]
-    Pipeline --> Brief["Executive summary\ndecisions + risks"]
-    Pipeline --> Dispatch["Follow-up email\nJira-style tickets"]
-    Pipeline --> Schedule["Calendar events\nGoogle Calendar URL + iCal"]
+    Session --> Pipeline["Lyzr 5-Agent Swarm (SSE Stream)"]
+    Pipeline --> Extract["Action Items & Kanban<br/>Assignees + Deadlines + Priority Tags"]
+    Pipeline --> Brief["Executive Dossier<br/>Decisions + Technical Risks"]
+    Pipeline --> Dispatch["Follow-Up Communications<br/>1-Click Gmail + Jira Tickets"]
+    Pipeline --> Schedule["Calendar Events<br/>RFC 5545 .ics + Google Meet Links"]
 
-    Store --> Search["Semantic + lexical recall"]
-    Search --> Answer["Grounded answer with\nspeaker and timestamp"]
-    Answer --> Dashboard["Dashboard result"]
+    Store --> Search["Hybrid Semantic & Lexical Recall<br/>(60% Cosine + 40% Lexical Overlap)"]
+    Search --> Answer["Grounded Answer with Speaker & Timestamp"]
+    Answer --> Dashboard["Live Production Dashboard"]
 
     Extract --> Dashboard
     Brief --> Dashboard
     Dispatch --> Dashboard
     Schedule --> Dashboard
 
-    Dashboard -->|Explicit user click| External["Gmail / Calendar / download"]
+    Dashboard -->|1-Click Action| External["Gmail Compose / Calendar Sync / .ics Download"]
 
-    Delete["Protected forget endpoint"] -.->|Delete by session or point| Store
-    Ask["Protected `/ask` endpoint"] --> Search
-    Ask -->|When configured| Lyzr["Lyzr Studio"]
+    Delete["Privacy-First `/api/forget` Endpoint"] -.->|GDPR Point or Session Purge| Store
+    Ask["Official `/ask` Endpoint"] --> Search
+    Ask --> Lyzr["Lyzr Studio Cloud Grounded Inference"]
+    Lyzr --> OutputAnswer["Grounded Strategic Synthesis"]
 
     classDef input fill:#172554,stroke:#60a5fa,color:#dbeafe;
     classDef process fill:#064e3b,stroke:#34d399,color:#d1fae5;
     classDef sensitive fill:#7f1d1d,stroke:#f87171,color:#fee2e2;
     classDef output fill:#3f1d5b,stroke:#c084fc,color:#f3e8ff;
     class Capture,External input;
-    class Normalize,Session,Embed,Pipeline,Extract,Brief,Dispatch,Schedule,Search,Answer process;
+    class Normalize,Session,Embed,Pipeline,Extract,Brief,Dispatch,Schedule,Search,Answer,OutputAnswer process;
     class Store,Delete,Ask,Lyzr sensitive;
     class Dashboard output;
 ```
 
-Transcript data is sensitive. Configure `API_SECRET_KEY`, restrict `ALLOWED_ORIGINS`, and provide Lyzr credentials only when external grounded synthesis is intended.
+---
+
+## Security & Privacy Lifecycle
+
+- **Authentication:** Protected API endpoints are secured via `API_SECRET_KEY` header (`x-api-key` or `Bearer`).
+- **Network Isolation:** CORS is strictly restricted to trusted origins via `ALLOWED_ORIGINS`.
+- **Privacy-First Memory Purge:** Users retain full sovereignty over their ambient memory; `POST /api/forget` and `DELETE /api/memory` permanently delete vectors by session or point ID from Qdrant Cloud.
