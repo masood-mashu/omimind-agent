@@ -389,13 +389,41 @@ def official_ask_endpoint(body: dict[str, Any] = Body(...)):
     matches = recall_res.get("recalled_memories", [])
     context = [f"[{m.get('speaker', 'Speaker')}]: {m.get('text', '')}" for m in matches]
 
+    # Live Lyzr Agent Studio integration (Section 7 of Official Hackathon Guide)
+    lyzr_api_key = os.environ.get("LYZR_API_KEY")
+    lyzr_agent_id = os.environ.get("LYZR_AGENT_ID")
+    lyzr_answer = None
+
+    if lyzr_api_key and lyzr_agent_id:
+        try:
+            import httpx
+            ctx_text = "\n".join("- " + c for c in context) or "none"
+            lyzr_resp = httpx.post(
+                "https://agent-prod.studio.lyzr.ai/v3/inference/chat/",
+                headers={"Content-Type": "application/json", "x-api-key": lyzr_api_key},
+                json={
+                    "user_id": os.environ.get("LYZR_USER_ID", uid),
+                    "agent_id": lyzr_agent_id,
+                    "session_id": f"{lyzr_agent_id}-{uid}",
+                    "message": f"CONTEXT:\n{ctx_text}\n\nQUESTION: {question}",
+                },
+                timeout=30.0
+            )
+            if lyzr_resp.status_code == 200:
+                lyzr_answer = lyzr_resp.json().get("response")
+        except Exception as e:
+            print("Lyzr Studio API fallback:", e)
+
     synthesis = orchestrator.synthesizer.synthesize(
         title=f"Memory Retrieval ({uid})",
         transcript_lines=[{"speaker": m.get("speaker", "Speaker"), "text": m.get("text", ""), "timestamp_str": m.get("timestamp_str", "00:00")} for m in matches]
     )
 
+    final_answer = lyzr_answer or synthesis.get("executive_summary", "No relevant context found.")
+
     return {
-        "answer": synthesis.get("executive_summary", "No relevant context found."),
+        "answer": final_answer,
+        "source": "lyzr_studio_cloud" if lyzr_answer else "lyzr_local_swarm",
         "context": context,
         "action_items": synthesis.get("action_items", []),
         "key_decisions": synthesis.get("key_decisions", [])
