@@ -1,0 +1,4 @@
+# Pyrefly Type Checker Configuration
+[project]
+search_path = [".", "backend", "agents"]
+python_version = "3.11"
