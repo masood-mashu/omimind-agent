@@ -9,3 +9,5 @@ qdrant_storage/
 .env
 .DS_Store
 *.log
+*.pdf
+
