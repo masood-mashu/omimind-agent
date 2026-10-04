@@ -2,7 +2,9 @@
 test_mcp_server.py - Tests for OmiMind Model Context Protocol (MCP) Server
 """
 import json
+
 import pytest
+
 from mcp_server import OmiMindMCPServer
 
 

@@ -4,7 +4,7 @@ Extracts meeting commitments, scheduling intent, and generates iCal/Google Calen
 """
 import re
 import urllib.parse
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any
 
 

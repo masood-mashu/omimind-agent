@@ -2,6 +2,7 @@
 test_calendar_scheduler.py - Tests for LyzrCalendarScheduler agent
 """
 import pytest
+
 from agents.calendar_scheduler import LyzrCalendarScheduler
 
 
