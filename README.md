@@ -16,7 +16,10 @@
 > - `POST https://omimind-agent.vercel.app/api/omi-webhook` *(Native Omi segment receiver)*  
 > ❓ **Official Question Endpoint:** `POST https://omimind-agent.vercel.app/ask`  
 > 🛡️ **Privacy & User Control:** `POST /api/forget?session_id=...` *(Purge vectors from Qdrant)*  
-> 🔌 **Native MCP Server:** `python mcp_server.py` *(Model Context Protocol stdio tools)*
+> 🔌 **Native MCP Server:** `python mcp_server.py` *(Model Context Protocol stdio tools)*  
+> 📖 **Deep-Dive Guides & Worked Examples:**  
+> - ⚡ [Single Execution Flow & Sequence Diagram (`docs/EXECUTION_FLOW.md`)](docs/EXECUTION_FLOW.md)  
+> - 🎙️ [Track 1: Meeting Intelligence Complete Analysis (`docs/TRACK_1_ANALYSIS.md`)](docs/TRACK_1_ANALYSIS.md)
 
 An autonomous, memory-backed chief of staff built for the **Omi AI Wearable**. OmiMind continuously ingests ambient meeting conversations, lectures, and voice memos — indexes every utterance into **Qdrant Cloud** for permanent semantic recall — and orchestrates a **Lyzr 5-Agent Swarm** that streams live execution events via SSE as it autonomously extracts commitments, synthesizes executive dossiers, dispatches Jira tickets, and schedules calendar events with Google Meet and iCal links.
 
