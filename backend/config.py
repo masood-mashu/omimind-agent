@@ -1,27 +1,21 @@
 """
 backend/config.py
-Centralized, typed application configuration using Pydantic BaseSettings.
+Centralized, typed application configuration using Pydantic BaseModel.
 Manages environment variables, Qdrant Cloud settings, Lyzr credentials, and security keys.
 """
 import os
 from typing import Optional
-from pydantic import Field
+from pydantic import BaseModel, Field
 
+# Gracefully load local .env if python-dotenv is installed
 try:
-    from pydantic_settings import BaseSettings, SettingsConfigDict
-    class _SettingsBase(BaseSettings):
-        model_config = SettingsConfigDict(
-            env_file=".env",
-            env_file_encoding="utf-8",
-            extra="ignore"
-        )
+    from dotenv import load_dotenv
+    load_dotenv()
 except Exception:
-    from pydantic import BaseModel
-    class _SettingsBase(BaseModel):
-        pass
+    pass
 
 
-class Settings(_SettingsBase):
+class Settings(BaseModel):
     # Application
     app_name: str = Field(default="OmiMind Agent", description="Service Name")
     app_version: str = Field(default="2.0.0", description="API Version")
@@ -73,17 +67,24 @@ class Settings(_SettingsBase):
 
     def __init__(self, **data):
         super().__init__(**data)
-        # Fallback to direct os.environ if BaseSettings did not populate
-        if not self.qdrant_url:
-            self.qdrant_url = os.environ.get("QDRANT_URL")
-        if not self.qdrant_api_key:
-            self.qdrant_api_key = os.environ.get("QDRANT_API_KEY")
-        if not self.lyzr_api_key:
-            self.lyzr_api_key = os.environ.get("LYZR_API_KEY")
-        if not self.lyzr_agent_id:
-            self.lyzr_agent_id = os.environ.get("LYZR_AGENT_ID")
-        if not self.api_secret_key:
-            self.api_secret_key = os.environ.get("API_SECRET_KEY")
+        # Populate from os.environ only if not explicitly passed in data
+        if "qdrant_url" not in data and "QDRANT_URL" in os.environ:
+            self.qdrant_url = os.environ["QDRANT_URL"]
+        if "qdrant_api_key" not in data and "QDRANT_API_KEY" in os.environ:
+            self.qdrant_api_key = os.environ["QDRANT_API_KEY"]
+        if "lyzr_api_key" not in data and "LYZR_API_KEY" in os.environ:
+            self.lyzr_api_key = os.environ["LYZR_API_KEY"]
+        if "lyzr_agent_id" not in data and "LYZR_AGENT_ID" in os.environ:
+            self.lyzr_agent_id = os.environ["LYZR_AGENT_ID"]
+        if "api_secret_key" not in data and "API_SECRET_KEY" in os.environ:
+            self.api_secret_key = os.environ["API_SECRET_KEY"]
+        if "omi_api_key" not in data and "OMI_API_KEY" in os.environ:
+            self.omi_api_key = os.environ["OMI_API_KEY"]
+        if "port" not in data and "PORT" in os.environ:
+            try:
+                self.port = int(os.environ["PORT"])
+            except ValueError:
+                pass
 
 
 # Singleton instance

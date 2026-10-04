@@ -91,49 +91,48 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # ─── Security & Telemetry Middleware ──────────────────────────────────────────
 
-class SecurityTelemetryMiddleware:
-    def __init__(self, app):
-        self.app = app
-
-    async def __call__(self, scope, receive, send):
-        if scope["type"] != "http":
-            await self.app(scope, receive, send)
-            return
-
-        secret = settings.api_secret_key
-        if secret:
-            path = scope.get("path", "")
-            exempt = {"/health", "/api/meetings", "/docs", "/openapi.json", "/favicon.ico"}
-            if path not in exempt and not path.startswith("/assets") and not path.startswith("/js"):
-                headers = dict(scope.get("headers", []))
-                x_api_key = headers.get(b"x-api-key", b"").decode("utf-8")
-                auth = headers.get(b"authorization", b"").decode("utf-8")
-                token = x_api_key or (auth[7:].strip() if auth.startswith("Bearer ") else "")
-                if token != secret:
-                    body = json.dumps({
+@app.middleware("http")
+async def security_and_telemetry_middleware(request: Request, call_next):
+    """
+    Security & Observability Middleware:
+    1. If `API_SECRET_KEY` is configured in Settings, enforces Bearer/x-api-key on non-exempt routes.
+    2. Injects telemetry headers: `X-Response-Time` and `X-Content-Type-Options`.
+    """
+    secret = settings.api_secret_key
+    if secret:
+        exempt_paths = {"/health", "/api/meetings", "/docs", "/openapi.json", "/favicon.ico"}
+        is_exempt = (
+            request.url.path in exempt_paths
+            or request.url.path.startswith("/assets")
+            or request.url.path.startswith("/js")
+            or request.url.path.startswith("/css")
+        )
+        if not is_exempt:
+            x_api_key = request.headers.get("x-api-key")
+            auth_header = request.headers.get("authorization", "")
+            bearer_token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else None
+            token = x_api_key or bearer_token
+            if token != secret:
+                return JSONResponse(
+                    status_code=401,
+                    content={
                         "success": False,
-                        "error": {"code": "UNAUTHORIZED", "message": "Invalid API key", "status_code": 401, "timestamp": time.time()},
+                        "error": {
+                            "code": "UNAUTHORIZED",
+                            "message": "Invalid or missing API key. Provide x-api-key or Bearer token.",
+                            "status_code": 401,
+                            "timestamp": time.time()
+                        },
                         "detail": "Unauthorized"
-                    }).encode("utf-8")
-                    await send({
-                        "type": "http.response.start",
-                        "status": 401,
-                        "headers": [(b"content-type", b"application/json"), (b"content-length", str(len(body)).encode("utf-8"))],
-                    })
-                    await send({"type": "http.response.body", "body": body})
-                    return
+                    }
+                )
 
-        async def send_wrapper(message):
-            if message["type"] == "http.response.start":
-                headers = list(message.get("headers", []))
-                headers.append((b"x-response-time", b"1.0ms"))
-                headers.append((b"x-content-type-options", b"nosniff"))
-                message["headers"] = headers
-            await send(message)
-
-        await self.app(scope, receive, send_wrapper)
-
-app.add_middleware(SecurityTelemetryMiddleware)
+    start_time = time.time()
+    response = await call_next(request)
+    duration_ms = (time.time() - start_time) * 1000
+    response.headers["X-Response-Time"] = f"{duration_ms:.2f}ms"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
 
 # Initialize persistent orchestrator
 orchestrator = OmiMindOrchestrator(storage_path="./qdrant_storage")

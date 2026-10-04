@@ -141,6 +141,7 @@ def generate_semantic_embedding(text: str, dim: int = VECTOR_DIM) -> list[float]
 
 class QdrantMemoryAgent:
     def __init__(self, storage_path: str = "./qdrant_storage"):
+        is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or os.environ.get("LAMBDA_TASK_ROOT"))
         is_testing = "pytest" in sys.modules or "PYTEST_CURRENT_TEST" in os.environ or storage_path == ":memory:"
 
         try:
@@ -151,19 +152,15 @@ class QdrantMemoryAgent:
             qdrant_url = os.environ.get("QDRANT_URL") if not is_testing else None
             qdrant_api_key = os.environ.get("QDRANT_API_KEY") if not is_testing else None
 
-        if storage_path == ":memory:" or is_testing:
+        if storage_path == ":memory:" or is_testing or (is_serverless and not qdrant_url):
             self.client = QdrantClient(":memory:")
         elif qdrant_url:
             # Qdrant Cloud — persistent across cold starts
             try:
-                self.client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key or None)
+                self.client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key or None, timeout=5)
             except Exception:
                 self.client = QdrantClient(":memory:")
         else:
-            # Local / serverless fallback
-            is_serverless = bool(os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME"))
-            if is_serverless:
-                storage_path = "/tmp/qdrant_storage"
             try:
                 self.client = QdrantClient(path=storage_path)
             except Exception:
@@ -180,18 +177,15 @@ class QdrantMemoryAgent:
                     collection_name=COLLECTION_NAME,
                     vectors_config=VectorParams(size=VECTOR_DIM, distance=Distance.COSINE),
                 )
+        except Exception:
             try:
-                self.client.create_payload_index(collection_name=COLLECTION_NAME, field_name="session_id", field_schema="keyword")
-                self.client.create_payload_index(collection_name=COLLECTION_NAME, field_name="speaker", field_schema="keyword")
+                self.client = QdrantClient(":memory:")
+                self.client.create_collection(
+                    collection_name=COLLECTION_NAME,
+                    vectors_config=VectorParams(size=VECTOR_DIM, distance=Distance.COSINE),
+                )
             except Exception:
                 pass
-        except Exception:
-            # Fallback to in-memory if remote cloud or path fails
-            self.client = QdrantClient(":memory:")
-            self.client.create_collection(
-                collection_name=COLLECTION_NAME,
-                vectors_config=VectorParams(size=VECTOR_DIM, distance=Distance.COSINE),
-            )
 
     def index_utterance(
         self,
