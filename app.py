@@ -1,0 +1,11 @@
+"""
+app.py - Root Application Entrypoint Alias
+Allows running 'uvicorn app:app --port 8000' directly as specified in the official Hackathon Guide.
+"""
+from backend.main import app
+
+__all__ = ["app"]
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
