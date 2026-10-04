@@ -4,8 +4,10 @@ Extracts meeting commitments, scheduling intent, and generates iCal/Google Calen
 """
 import re
 import urllib.parse
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
+
+UTC = timezone.utc
 
 
 class LyzrCalendarScheduler:
