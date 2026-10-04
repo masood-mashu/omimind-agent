@@ -165,11 +165,11 @@ cd omimind-agent
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Run automated tests (49 passing tests)
+# 3. Run automated tests (53 passing tests)
 pytest tests/ -v
 
-# 4. Start the application server
-python -m uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
+# 4. Start the application server (either root app.py or backend.main)
+python -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload
 ```
 Open **`http://localhost:8000`** in your browser to interact with the Live OmiMind Dashboard.
 
@@ -197,20 +197,24 @@ docker-compose up --build
 | `POST` | `/api/query` | Hybrid semantic memory search with relevance score |
 | `POST` | `/api/seed` | Pre-seed all demo meetings into Qdrant Cloud |
 | `POST` | `/api/process` | Non-streaming fallback for preset meeting |
+| `POST` | `/omi/conversation` | **Official Guide:** Omi webhook memory creation trigger |
+| `POST` | `/omi/realtime` | **Official Guide:** Real-time audio transcript stream |
+| `POST` | `/ask` | **Official Guide:** Q&A via Qdrant memory + Lyzr Studio cloud |
+| `POST` | `/api/forget` | Purge session vectors from Qdrant Cloud |
 
 ---
 
 ## 🧪 Comprehensive Pytest Test Suite & Coverage Gate
 
-OmiMind includes an enterprise-grade automated test suite with **49 rigorous unit and integration tests** achieving **100% green pass rate**:
+OmiMind includes an enterprise-grade automated test suite with **53 rigorous unit and integration tests** achieving **100% green pass rate**:
 
 ```bash
 $ pytest tests/ -v
 ============================= test session starts =============================
-collected 49 items
+collected 53 items
 
 tests/test_action_extractor.py::TestLyzrActionExtractor (7 tests)      PASSED
-tests/test_api_endpoints.py::TestApiEndpoints (11 tests)               PASSED
+tests/test_api_endpoints.py::TestApiEndpoints (15 tests)               PASSED
 tests/test_calendar_scheduler.py::TestLyzrCalendarScheduler (5 tests)  PASSED
 tests/test_executive_synth.py::TestLyzrExecutiveSynthesizer (3 tests)  PASSED
 tests/test_mcp_server.py::TestOmiMindMCPServer (4 tests)                PASSED
@@ -219,7 +223,7 @@ tests/test_memory_agent.py::TestQdrantMemoryAgent (5 tests)            PASSED
 tests/test_omimind.py::IntegrationSuite (6 tests)                      PASSED
 tests/test_task_dispatcher.py::TestLyzrTaskDispatcher (3 tests)        PASSED
 
-======================== 49 passed in 3.74s ========================
+======================== 53 passed in 4.44s ========================
 ```
 
 ---
