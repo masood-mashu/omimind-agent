@@ -151,9 +151,11 @@ Available tools include semantic memory search, meeting dossier generation, acti
 
 ## Additional documentation
 
+- [Architecture diagram](docs/ARCHITECTURE.md)
+- [Data-flow diagram](docs/DATA_FLOW.md)
+- [Sequence diagram](docs/SEQUENCE_DIAGRAM.md)
 - [Execution flow](docs/EXECUTION_FLOW.md)
 - [Track 1 analysis](docs/TRACK_1_ANALYSIS.md)
-- [Architecture diagram](docs/assets/omimind_architecture_diagram.jpg)
 
 ## Docker
 
