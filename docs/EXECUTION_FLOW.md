@@ -6,6 +6,8 @@ This document details the end-to-end execution lifecycle of **OmiMind**—from t
 
 ## 1. End-to-End Sequence Diagram
 
+![OmiMind Sequence Diagram](assets/omimind_sequence_diagram.jpg)
+
 ```mermaid
 sequenceDiagram
     autonumber

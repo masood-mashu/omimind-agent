@@ -29,6 +29,8 @@ Built for **HiDevs × Lyzr × Qdrant × Omi Hackathon 2026 — Track 1: Meeting 
 
 ## 🏛️ System Architecture
 
+![OmiMind System Architecture](docs/assets/omimind_architecture_diagram.jpg)
+
 ```mermaid
 flowchart TD
     User["🎙️ Omi Wearable / Mic"] -->|Ambient Audio Stream| Omi["Omi Voice Webhook / Ingestion"]
@@ -85,6 +87,8 @@ flowchart TD
                                                                     ▼
                                                     [📋 Executive Dashboard & Action Suite]
 ```
+
+> ⚡ **Visual Sequence Diagram:** For the complete chronological message flow across lifelines, see the [OmiMind Sequence Diagram](docs/assets/omimind_sequence_diagram.jpg) and [Execution Flow Guide](docs/EXECUTION_FLOW.md).
 
 ---
 
