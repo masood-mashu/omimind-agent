@@ -2,7 +2,9 @@
 mock_data.py - Enterprise Voice Recordings & Meeting Transcripts for Omi Simulation
 """
 
-DEMO_MEETINGS = {
+from typing import Any
+
+DEMO_MEETINGS: dict[str, dict[str, Any]] = {
     "q4_strategy": {
         "id": "q4_strategy",
         "title": "Executive Q4 AI Infrastructure & Budget Review",

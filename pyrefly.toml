@@ -1,4 +1,5 @@
-# Pyrefly Type Checker Configuration
 [project]
 search_path = [".", "backend", "agents"]
 python_version = "3.11"
+python-interpreter-path = "C:/Users/Masood/AppData/Local/Programs/Python/Python311/python.exe"
+site-package-path = ["C:/Users/Masood/AppData/Local/Programs/Python/Python311/Lib/site-packages"]

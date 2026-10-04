@@ -232,12 +232,15 @@ def process_meeting(req: ProcessRequest):
     if req.meeting_id not in DEMO_MEETINGS:
         raise HTTPException(status_code=404, detail="Meeting not found")
     meeting = DEMO_MEETINGS[req.meeting_id]
+    session_id = str(meeting["id"])
+    title = str(meeting["title"])
+    transcript_lines: list[dict[str, Any]] = meeting.get("lines", [])  # type: ignore[assignment]
     dossier = orchestrator.process_session(
-        session_id=meeting["id"],
-        title=meeting["title"],
-        transcript_lines=meeting["lines"]
+        session_id=session_id,
+        title=title,
+        transcript_lines=transcript_lines
     )
-    processed_cache[meeting["id"]] = dossier
+    processed_cache[session_id] = dossier
     return dossier
 
 # â”€â”€â”€ SSE Streaming Pipeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -331,8 +334,11 @@ async def process_meeting_stream(req: ProcessRequest):
     if req.meeting_id not in DEMO_MEETINGS:
         raise HTTPException(status_code=404, detail="Meeting not found")
     meeting = DEMO_MEETINGS[req.meeting_id]
+    session_id = str(meeting["id"])
+    title = str(meeting["title"])
+    lines: list[dict] = meeting.get("lines", [])  # type: ignore[assignment]
     return StreamingResponse(
-        _stream_pipeline(meeting["id"], meeting["title"], meeting["lines"]),
+        _stream_pipeline(session_id, title, lines),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     )
