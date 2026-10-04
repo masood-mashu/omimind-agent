@@ -12,6 +12,8 @@ let searchDebounceTimer = null;
 let isAudioActive = false;
 
 window.switchTab = ui.switchTab;
+window.openGmailCompose = ui.openGmailCompose;
+window.openMailto = ui.openMailto;
 window.copyEmailText = ui.copyEmailText;
 window.copyJiraText = ui.copyJiraText;
 window.downloadICS = ui.downloadICS;

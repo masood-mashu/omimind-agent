@@ -195,6 +195,44 @@ export function renderDossier(data) {
   }
 }
 
+export function openGmailCompose() {
+  const subEl = document.getElementById('email-subject');
+  const toEl = document.getElementById('email-to');
+  const bodyEl = document.getElementById('email-body');
+  
+  const to = (toEl && toEl.innerText) ? toEl.innerText.trim() : '';
+  const subject = (subEl && subEl.innerText) ? subEl.innerText.trim() : 'Executive Follow-Up';
+  const body = (bodyEl && bodyEl.innerText) ? bodyEl.innerText.trim() : '';
+
+  if (!body || body === 'No email generated yet.') {
+    showToast('No email generated yet. Run the swarm first!');
+    return;
+  }
+
+  const gmailUrl = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to)}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.open(gmailUrl, '_blank');
+  showToast('Opening Gmail with pre-filled draft...');
+}
+
+export function openMailto() {
+  const subEl = document.getElementById('email-subject');
+  const toEl = document.getElementById('email-to');
+  const bodyEl = document.getElementById('email-body');
+  
+  const to = (toEl && toEl.innerText) ? toEl.innerText.trim() : '';
+  const subject = (subEl && subEl.innerText) ? subEl.innerText.trim() : 'Executive Follow-Up';
+  const body = (bodyEl && bodyEl.innerText) ? bodyEl.innerText.trim() : '';
+
+  if (!body || body === 'No email generated yet.') {
+    showToast('No email generated yet. Run the swarm first!');
+    return;
+  }
+
+  const mailtoUrl = `mailto:${encodeURIComponent(to)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  window.location.href = mailtoUrl;
+  showToast('Opening default mail client...');
+}
+
 export function copyEmailText() {
   const body = document.getElementById('email-body');
   if (body && body.innerText) {
