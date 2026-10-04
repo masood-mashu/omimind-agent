@@ -3,18 +3,25 @@ backend/config.py
 Centralized, typed application configuration using Pydantic BaseSettings.
 Manages environment variables, Qdrant Cloud settings, Lyzr credentials, and security keys.
 """
+import os
 from typing import Optional
 from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+
+try:
+    from pydantic_settings import BaseSettings, SettingsConfigDict
+    class _SettingsBase(BaseSettings):
+        model_config = SettingsConfigDict(
+            env_file=".env",
+            env_file_encoding="utf-8",
+            extra="ignore"
+        )
+except Exception:
+    from pydantic import BaseModel
+    class _SettingsBase(BaseModel):
+        pass
 
 
-class Settings(BaseSettings):
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore"
-    )
-
+class Settings(_SettingsBase):
     # Application
     app_name: str = Field(default="OmiMind Agent", description="Service Name")
     app_version: str = Field(default="2.0.0", description="API Version")
@@ -63,6 +70,20 @@ class Settings(BaseSettings):
         default=None,
         description="Optional API secret key for endpoint protection. If None, runs in open demo mode."
     )
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        # Fallback to direct os.environ if BaseSettings did not populate
+        if not self.qdrant_url:
+            self.qdrant_url = os.environ.get("QDRANT_URL")
+        if not self.qdrant_api_key:
+            self.qdrant_api_key = os.environ.get("QDRANT_API_KEY")
+        if not self.lyzr_api_key:
+            self.lyzr_api_key = os.environ.get("LYZR_API_KEY")
+        if not self.lyzr_agent_id:
+            self.lyzr_agent_id = os.environ.get("LYZR_AGENT_ID")
+        if not self.api_secret_key:
+            self.api_secret_key = os.environ.get("API_SECRET_KEY")
 
 
 # Singleton instance
