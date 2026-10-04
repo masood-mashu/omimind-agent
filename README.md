@@ -4,6 +4,8 @@ OmiMind is an ambient meeting-intelligence assistant. It turns voice transcripts
 
 The project is built for the HiDevs × Lyzr × Qdrant × Omi hackathon and includes a browser dashboard with live Server-Sent Events (SSE) progress updates.
 
+**Build track:** Meeting & Lecture Intelligence — Track 1
+
 ## Demo
 
 Live application: [omimind-agent.vercel.app](https://omimind-agent.vercel.app/)
@@ -32,6 +34,34 @@ Email, tickets, calendar events, dashboard
 ```
 
 The main processing pipeline is implemented locally in `agents/`. Lyzr Studio integration is available for the protected `/ask` grounded Q&A endpoint when Lyzr credentials are configured.
+
+The public preset feeds use transcript simulation for a repeatable demo. The protected Omi-compatible webhook routes support real Omi transcript payloads.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Omi["Omi wearable / microphone"] -->|Transcript segments| API["FastAPI application"]
+    Browser["Browser dashboard"] -->|JSON + SSE| API
+
+    API --> Pipeline["Local processing pipeline"]
+    Pipeline --> Memory["Memory indexing"]
+    Pipeline --> Actions["Action extraction"]
+    Pipeline --> Synthesis["Executive synthesis"]
+    Pipeline --> Dispatch["Email + Jira-style output"]
+    Pipeline --> Calendar["Calendar + iCal output"]
+
+    Memory --> Qdrant[("Qdrant vector memory")]
+    Qdrant -->|Retrieved context| API
+    API -->|Protected /ask| Lyzr["Lyzr Studio optional synthesis"]
+
+    classDef external fill:#172554,stroke:#60a5fa,color:#dbeafe;
+    classDef service fill:#064e3b,stroke:#34d399,color:#d1fae5;
+    classDef store fill:#3f1d5b,stroke:#c084fc,color:#f3e8ff;
+    class Omi,Browser,Lyzr external;
+    class API,Pipeline,Memory,Actions,Synthesis,Dispatch,Calendar service;
+    class Qdrant store;
+```
 
 ## Quick start
 
@@ -156,6 +186,12 @@ Available tools include semantic memory search, meeting dossier generation, acti
 - [Sequence diagram](docs/SEQUENCE_DIAGRAM.md)
 - [Execution flow](docs/EXECUTION_FLOW.md)
 - [Track 1 analysis](docs/TRACK_1_ANALYSIS.md)
+- [Five-minute demo script](docs/DEMO_SCRIPT.md)
+- [License](LICENSE)
+
+## Demo video
+
+Record a public video under five minutes using [the demo script](docs/DEMO_SCRIPT.md), then add its YouTube or Loom URL here and in the hackathon submission form. No placeholder URL is included.
 
 ## Docker
 
