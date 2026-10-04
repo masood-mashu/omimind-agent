@@ -6,6 +6,7 @@ import hashlib
 import math
 import os
 import re
+import sys
 from abc import ABC, abstractmethod
 from typing import Any
 
@@ -140,10 +141,19 @@ def generate_semantic_embedding(text: str, dim: int = VECTOR_DIM) -> list[float]
 
 class QdrantMemoryAgent:
     def __init__(self, storage_path: str = "./qdrant_storage"):
-        qdrant_url = os.environ.get("QDRANT_URL")
-        qdrant_api_key = os.environ.get("QDRANT_API_KEY")
+        is_testing = "pytest" in sys.modules or "PYTEST_CURRENT_TEST" in os.environ or storage_path == ":memory:"
 
-        if qdrant_url:
+        try:
+            from backend.config import settings
+            qdrant_url = settings.qdrant_url if not is_testing else None
+            qdrant_api_key = settings.qdrant_api_key if not is_testing else None
+        except Exception:
+            qdrant_url = os.environ.get("QDRANT_URL") if not is_testing else None
+            qdrant_api_key = os.environ.get("QDRANT_API_KEY") if not is_testing else None
+
+        if storage_path == ":memory:" or is_testing:
+            self.client = QdrantClient(":memory:")
+        elif qdrant_url:
             # Qdrant Cloud — persistent across cold starts
             try:
                 self.client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key or None)
@@ -170,6 +180,11 @@ class QdrantMemoryAgent:
                     collection_name=COLLECTION_NAME,
                     vectors_config=VectorParams(size=VECTOR_DIM, distance=Distance.COSINE),
                 )
+            try:
+                self.client.create_payload_index(collection_name=COLLECTION_NAME, field_name="session_id", field_schema="keyword")
+                self.client.create_payload_index(collection_name=COLLECTION_NAME, field_name="speaker", field_schema="keyword")
+            except Exception:
+                pass
         except Exception:
             # Fallback to in-memory if remote cloud or path fails
             self.client = QdrantClient(":memory:")

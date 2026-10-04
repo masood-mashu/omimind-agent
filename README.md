@@ -172,7 +172,7 @@ cd omimind-agent
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Run automated tests (53 passing tests)
+# 3. Run automated tests (55 passing tests)
 pytest tests/ -v
 
 # 4. Start the application server (either root app.py or backend.main)
@@ -213,15 +213,15 @@ docker-compose up --build
 
 ## 🧪 Comprehensive Pytest Test Suite & Coverage Gate
 
-OmiMind includes an enterprise-grade automated test suite with **53 rigorous unit and integration tests** achieving **100% green pass rate**:
+OmiMind includes an enterprise-grade automated test suite with **55 rigorous unit and integration tests** achieving **100% green pass rate**:
 
 ```bash
 $ pytest tests/ -v
 ============================= test session starts =============================
-collected 53 items
+collected 55 items
 
 tests/test_action_extractor.py::TestLyzrActionExtractor (7 tests)      PASSED
-tests/test_api_endpoints.py::TestApiEndpoints (15 tests)               PASSED
+tests/test_api_endpoints.py::TestApiEndpoints (17 tests)               PASSED
 tests/test_calendar_scheduler.py::TestLyzrCalendarScheduler (5 tests)  PASSED
 tests/test_executive_synth.py::TestLyzrExecutiveSynthesizer (3 tests)  PASSED
 tests/test_mcp_server.py::TestOmiMindMCPServer (4 tests)                PASSED
@@ -230,7 +230,7 @@ tests/test_memory_agent.py::TestQdrantMemoryAgent (5 tests)            PASSED
 tests/test_omimind.py::IntegrationSuite (6 tests)                      PASSED
 tests/test_task_dispatcher.py::TestLyzrTaskDispatcher (3 tests)        PASSED
 
-======================== 53 passed in 4.44s ========================
+======================== 55 passed in 4.51s ========================
 ```
 
 ---

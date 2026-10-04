@@ -163,3 +163,23 @@ class TestApiEndpoints:
         resp = client.post("/api/forget?session_id=rt_test")
         assert resp.status_code == 200
         assert resp.json()["status"] == "deleted"
+
+    def test_structured_error_handling_and_telemetry(self, client):
+        # 404 with structured error schema
+        resp = client.post("/api/process", json={"meeting_id": "nonexistent_meeting_xyz"})
+        assert resp.status_code == 404
+        data = resp.json()
+        assert data["success"] is False
+        assert "error" in data
+        assert data["error"]["code"] == "HTTP_404"
+        assert "Meeting not found" in data["error"]["message"]
+        # Verify telemetry headers
+        assert "X-Response-Time" in resp.headers
+        assert resp.headers["X-Content-Type-Options"] == "nosniff"
+
+    def test_typed_configuration_settings(self):
+        from backend.config import Settings
+        cfg = Settings(app_name="Test OmiMind", port=9000)
+        assert cfg.app_name == "Test OmiMind"
+        assert cfg.port == 9000
+        assert cfg.collection_name == "omi_ambient_memory"

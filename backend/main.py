@@ -10,19 +10,21 @@ import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from fastapi import Body, FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from agents.orchestrator import OmiMindOrchestrator
+from backend.config import settings
 from backend.mock_data import DEMO_MEETINGS
 
 app = FastAPI(
-    title="OmiMind - Ambient Voice Memory & Multi-Agent Chief of Staff",
+    title=settings.app_name,
     description="Voice Intelligence powered by Omi ambient audio, Qdrant vector memory, and Lyzr multi-agent framework.",
-    version="2.0.0"
+    version=settings.app_version
 )
 
 app.add_middleware(
@@ -32,6 +34,100 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ─── Structured Error Handling Handlers ──────────────────────────────────────
+
+@app.exception_handler(HTTPException)
+async def custom_http_exception_handler(request: Request, exc: HTTPException):
+    """Structured response for HTTP exceptions with full backward compatibility."""
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "error": {
+                "code": f"HTTP_{exc.status_code}",
+                "message": exc.detail if isinstance(exc.detail, str) else "HTTP Exception",
+                "status_code": exc.status_code,
+                "timestamp": time.time()
+            },
+            "detail": exc.detail
+        }
+    )
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    """Structured response for 422 payload schema validation errors."""
+    return JSONResponse(
+        status_code=422,
+        content={
+            "success": False,
+            "error": {
+                "code": "VALIDATION_ERROR",
+                "message": "Invalid request payload schema",
+                "status_code": 422,
+                "details": exc.errors(),
+                "timestamp": time.time()
+            },
+            "detail": exc.errors()
+        }
+    )
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    """Fallback handler for uncaught server errors."""
+    return JSONResponse(
+        status_code=500,
+        content={
+            "success": False,
+            "error": {
+                "code": "INTERNAL_SERVER_ERROR",
+                "message": str(exc),
+                "status_code": 500,
+                "timestamp": time.time()
+            },
+            "detail": str(exc)
+        }
+    )
+
+# ─── Security & Telemetry Middleware ──────────────────────────────────────────
+
+@app.middleware("http")
+async def security_and_telemetry_middleware(request: Request, call_next):
+    """
+    Security & Observability Middleware:
+    1. If `API_SECRET_KEY` is configured in Settings, enforces Bearer/x-api-key on non-exempt routes.
+    2. Injects telemetry headers: `X-Response-Time` and `X-Content-Type-Options`.
+    """
+    secret = settings.api_secret_key
+    if secret:
+        exempt_paths = {"/health", "/api/meetings", "/docs", "/openapi.json", "/favicon.ico"}
+        is_exempt = request.url.path in exempt_paths or request.url.path.startswith("/assets")
+        if not is_exempt:
+            x_api_key = request.headers.get("x-api-key")
+            auth_header = request.headers.get("authorization", "")
+            bearer_token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else None
+            token = x_api_key or bearer_token
+            if token != secret:
+                return JSONResponse(
+                    status_code=401,
+                    content={
+                        "success": False,
+                        "error": {
+                            "code": "UNAUTHORIZED",
+                            "message": "Invalid or missing API key. Provide x-api-key or Bearer token.",
+                            "status_code": 401,
+                            "timestamp": time.time()
+                        },
+                        "detail": "Unauthorized"
+                    }
+                )
+
+    start_time = time.time()
+    response = await call_next(request)
+    duration_ms = (time.time() - start_time) * 1000
+    response.headers["X-Response-Time"] = f"{duration_ms:.2f}ms"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
 
 # Initialize persistent orchestrator
 orchestrator = OmiMindOrchestrator(storage_path="./qdrant_storage")
