@@ -267,7 +267,7 @@ pip install -r requirements.txt
 ```bash
 cp .env.example .env
 ```
-*(The repository includes built-in fallbacks for Qdrant and Lyzr, making it fully runnable out of the box even without external credentials!)*
+Set a strong `API_SECRET_KEY` and configure `ALLOWED_ORIGINS` before enabling the protected Omi, Q&A, seed, and memory-deletion endpoints. The public preset demo endpoints remain available for the hackathon walkthrough. Qdrant and Lyzr credentials are optional for local fallback mode.
 
 ### 3. Run Automated Tests
 ```bash

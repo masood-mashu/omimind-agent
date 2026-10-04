@@ -5,6 +5,21 @@
 
 let lastDossier = null;
 
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  })[char]);
+}
+
+function safeUrl(value) {
+  try {
+    const url = new URL(String(value ?? ''), window.location.origin);
+    return ['http:', 'https:'].includes(url.protocol) ? escapeHtml(url.href) : '#';
+  } catch (_) {
+    return '#';
+  }
+}
+
 export function switchTab(tabId) {
   const tabs = ['summary', 'tasks', 'email', 'jira', 'calendar'];
   tabs.forEach(t => {
@@ -46,7 +61,10 @@ export function showToast(message, type = 'success') {
   const borderCol = type === 'success' ? 'border-cyan-500/40' : 'border-amber-500/40';
   const textCol = type === 'success' ? 'text-cyan-300' : 'text-amber-300';
   toast.className = `toast pointer-events-auto px-4 py-2.5 rounded-xl bg-slate-900/95 border ${borderCol} ${textCol} text-xs font-mono shadow-2xl flex items-center gap-2 backdrop-blur-md`;
-  toast.innerHTML = `<span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span><span>${message}</span>`;
+  toast.innerHTML = '<span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>';
+  const messageEl = document.createElement('span');
+  messageEl.textContent = message;
+  toast.appendChild(messageEl);
   container.appendChild(toast);
 
   setTimeout(() => {
@@ -75,12 +93,12 @@ export function renderDossier(data) {
     summaryContainer.innerHTML = `
       <div>
         <div class="flex justify-between items-start mb-2">
-          <h2 class="text-xl font-bold text-white">${s.title}</h2>
-          <span class="text-xs px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 font-mono">~${s.estimated_duration_min} min session</span>
+          <h2 class="text-xl font-bold text-white">${escapeHtml(s.title)}</h2>
+          <span class="text-xs px-2.5 py-1 rounded-full bg-cyan-500/20 text-cyan-300 font-mono">~${escapeHtml(s.estimated_duration_min)} min session</span>
         </div>
-        <p class="text-xs text-slate-400 font-mono mb-4">Attendees: ${s.participants.join(', ')}</p>
+        <p class="text-xs text-slate-400 font-mono mb-4">Attendees: ${s.participants.map(escapeHtml).join(', ')}</p>
         <div class="p-4 rounded-xl bg-slate-900/80 border border-slate-800 text-slate-200 text-sm leading-relaxed mb-4">
-          ${s.executive_summary}
+          ${escapeHtml(s.executive_summary)}
         </div>
       </div>
 
@@ -90,7 +108,7 @@ export function renderDossier(data) {
             <span>✓ Key Decisions Confirmed</span>
           </h4>
           <ul class="text-xs text-slate-300 space-y-1.5 font-mono">
-            ${s.key_decisions.map(d => `<li class="flex items-start gap-1.5"><span class="text-emerald-400">•</span><span>${d}</span></li>`).join('')}
+            ${s.key_decisions.map(d => `<li class="flex items-start gap-1.5"><span class="text-emerald-400">•</span><span>${escapeHtml(d)}</span></li>`).join('')}
           </ul>
         </div>
 
@@ -99,7 +117,7 @@ export function renderDossier(data) {
             <span>⚠️ Identified Risks & Blockers</span>
           </h4>
           <ul class="text-xs text-slate-300 space-y-1.5 font-mono">
-            ${s.risks_and_blockers.map(r => `<li class="flex items-start gap-1.5"><span class="text-amber-400">•</span><span>${r}</span></li>`).join('')}
+            ${s.risks_and_blockers.map(r => `<li class="flex items-start gap-1.5"><span class="text-amber-400">•</span><span>${escapeHtml(r)}</span></li>`).join('')}
           </ul>
         </div>
       </div>
@@ -119,14 +137,14 @@ export function renderDossier(data) {
               <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold ${
                 item.priority === 'Critical' ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' :
                 item.priority === 'High' ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40' : 'bg-slate-800 text-slate-300'
-              }">${item.priority}</span>
-              <span class="font-semibold text-xs text-white">${item.title}</span>
+              }">${escapeHtml(item.priority)}</span>
+              <span class="font-semibold text-xs text-white">${escapeHtml(item.title)}</span>
             </div>
-            <p class="text-[11px] text-slate-400 truncate italic">"${item.quote}"</p>
+            <p class="text-[11px] text-slate-400 truncate italic">"${escapeHtml(item.quote)}"</p>
           </div>
           <div class="text-right font-mono text-xs">
-            <span class="text-cyan-400 block font-bold">${item.assignee}</span>
-            <span class="text-slate-500 text-[10px]">Due: ${item.due_date}</span>
+            <span class="text-cyan-400 block font-bold">${escapeHtml(item.assignee)}</span>
+            <span class="text-slate-500 text-[10px]">Due: ${escapeHtml(item.due_date)}</span>
           </div>
         </div>
       `).join('');
@@ -149,11 +167,11 @@ export function renderDossier(data) {
     jiraList.innerHTML = data.jira_tickets.map(t => `
       <div class="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 space-y-1.5 hover:border-slate-700 transition">
         <div class="flex justify-between items-center text-xs">
-          <span class="font-bold text-cyan-300 font-mono">${t.ticket_key}: ${t.summary}</span>
-          <span class="text-slate-400 text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800">${t.priority} Priority</span>
+          <span class="font-bold text-cyan-300 font-mono">${escapeHtml(t.ticket_key)}: ${escapeHtml(t.summary)}</span>
+          <span class="text-slate-400 text-[10px] font-mono px-2 py-0.5 rounded bg-slate-800">${escapeHtml(t.priority)} Priority</span>
         </div>
-        <div class="text-slate-400 text-[11px] font-mono">Assignee: <span class="text-slate-200">${t.assignee}</span> | Due: <span class="text-slate-200">${t.due_date}</span></div>
-        <div class="text-slate-500 text-[11px] italic font-sans">${t.description}</div>
+        <div class="text-slate-400 text-[11px] font-mono">Assignee: <span class="text-slate-200">${escapeHtml(t.assignee)}</span> | Due: <span class="text-slate-200">${escapeHtml(t.due_date)}</span></div>
+        <div class="text-slate-500 text-[11px] italic font-sans">${escapeHtml(t.description)}</div>
       </div>
     `).join('');
   }
@@ -173,16 +191,16 @@ export function renderDossier(data) {
           <div class="space-y-1 max-w-[70%]">
             <div class="flex items-center gap-2">
               <span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/40">CALENDAR SYNC</span>
-              <span class="font-semibold text-xs text-white">${evt.title}</span>
+              <span class="font-semibold text-xs text-white">${escapeHtml(evt.title)}</span>
             </div>
-            <p class="text-[11px] text-slate-400 italic font-mono">Proposed by ${evt.speaker_source}: "${evt.context_utterance}"</p>
+            <p class="text-[11px] text-slate-400 italic font-mono">Proposed by ${escapeHtml(evt.speaker_source)}: "${escapeHtml(evt.context_utterance)}"</p>
             <div class="text-[11px] text-cyan-300 font-mono flex items-center gap-3">
-              <span>📅 ${evt.date_str}</span>
-              <span>⏰ ${evt.time_str} (${evt.duration_minutes}m)</span>
+              <span>📅 ${escapeHtml(evt.date_str)}</span>
+              <span>⏰ ${escapeHtml(evt.time_str)} (${escapeHtml(evt.duration_minutes)}m)</span>
             </div>
           </div>
           <div class="flex items-center gap-2 font-mono text-xs">
-            <a href="${evt.google_calendar_url}" target="_blank" class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs flex items-center gap-1.5 transition">
+            <a href="${safeUrl(evt.google_calendar_url)}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs flex items-center gap-1.5 transition">
               <span>+ Google Meet</span>
             </a>
             <button onclick="downloadICS(${idx})" class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition">
@@ -320,7 +338,7 @@ function _agentRow(agent, status, message, count) {
     : '';
 
   const msgEl = message
-    ? `<p class="text-[10px] text-slate-400 font-mono mt-0.5">${message}</p>`
+     ? `<p class="text-[10px] text-slate-400 font-mono mt-0.5">${escapeHtml(message)}</p>`
     : '';
 
   return `

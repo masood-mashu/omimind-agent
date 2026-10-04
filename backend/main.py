@@ -3,6 +3,7 @@ main.py - FastAPI Application Server for OmiMind Ambient Voice Intelligence
 Exposes REST endpoints for Qdrant vector memory, Lyzr agent synthesis, and frontend UI.
 """
 import json
+import logging
 import os
 import re
 import time
@@ -15,11 +16,13 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from agents.orchestrator import OmiMindOrchestrator
 from backend.config import settings
 from backend.mock_data import DEMO_MEETINGS
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title=settings.app_name,
@@ -29,8 +32,15 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
+    allow_origins=[
+        origin.strip()
+        for origin in os.environ.get(
+            "ALLOWED_ORIGINS",
+            "http://localhost:8000,http://127.0.0.1:8000"
+        ).split(",")
+        if origin.strip()
+    ],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -75,17 +85,18 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
     """Fallback handler for uncaught server errors."""
+    logger.exception("Unhandled exception while serving %s", request.url.path)
     return JSONResponse(
         status_code=500,
         content={
             "success": False,
             "error": {
                 "code": "INTERNAL_SERVER_ERROR",
-                "message": str(exc),
+                "message": "Internal server error",
                 "status_code": 500,
                 "timestamp": time.time()
             },
-            "detail": str(exc)
+            "detail": "Internal server error"
         }
     )
 
@@ -98,16 +109,27 @@ async def security_and_telemetry_middleware(request: Request, call_next):
     1. If `API_SECRET_KEY` is configured in Settings, enforces Bearer/x-api-key on non-exempt routes.
     2. Injects telemetry headers: `X-Response-Time` and `X-Content-Type-Options`.
     """
-    secret = settings.api_secret_key
-    if secret:
-        exempt_paths = {"/health", "/api/meetings", "/docs", "/openapi.json", "/favicon.ico"}
-        is_exempt = (
-            request.url.path in exempt_paths
-            or request.url.path.startswith("/assets")
-            or request.url.path.startswith("/js")
-            or request.url.path.startswith("/css")
-        )
-        if not is_exempt:
+    protected_paths = {
+        "/api/forget", "/api/memory", "/api/seed",
+        "/api/omi-webhook", "/omi/conversation", "/omi/realtime", "/ask"
+    }
+    if request.url.path in protected_paths:
+        secret = settings.api_secret_key
+        if not secret:
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "success": False,
+                    "error": {
+                        "code": "PROTECTION_NOT_CONFIGURED",
+                        "message": "This endpoint is disabled until API_SECRET_KEY is configured.",
+                        "status_code": 503,
+                        "timestamp": time.time()
+                    },
+                    "detail": "Protected endpoint unavailable"
+                }
+            )
+        else:
             x_api_key = request.headers.get("x-api-key")
             auth_header = request.headers.get("authorization", "")
             bearer_token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else None
@@ -150,7 +172,7 @@ class CustomVoiceRequest(BaseModel):
 
 class QueryRequest(BaseModel):
     question: str
-    limit: int | None = 4
+    limit: int = Field(default=4, ge=1, le=20)
 
 class OmiWebhookRequest(BaseModel):
     """Native Omi device webhook payload format."""
@@ -432,7 +454,7 @@ def seed_demo_data():
 def query_memory(req: QueryRequest):
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty")
-    return orchestrator.query_semantic_memory(query=req.question, limit=req.limit or 4)
+    return orchestrator.query_semantic_memory(query=req.question, limit=req.limit)
 
 # ─── Official Hackathon Guide Endpoints (Lyzr × Qdrant × Omi) ────────────────
 
@@ -475,11 +497,15 @@ def omi_realtime_webhook(uid: str = "default_user", session_id: str = "", payloa
     for s in segments:
         t = s.get("text", "").strip()
         if t:
+            try:
+                timestamp = float(s.get("start", 0))
+            except (TypeError, ValueError) as exc:
+                raise HTTPException(status_code=422, detail="Segment start must be numeric") from exc
             orchestrator.memory.index_utterance(
                 session_id=session_id or f"realtime_{uid}",
                 speaker=s.get("speaker", "Omi User"),
                 text=t,
-                timestamp=float(s.get("start", 0)),
+                timestamp=timestamp,
                 timestamp_str="live"
             )
             indexed += 1
@@ -495,7 +521,14 @@ def official_ask_endpoint(body: dict[str, Any] = Body(...)):
     if not question:
         raise HTTPException(status_code=400, detail="Question cannot be empty")
 
-    recall_res = orchestrator.query_semantic_memory(query=question, limit=int(body.get("k", 5)))
+    try:
+        limit = int(body.get("k", 5))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=422, detail="k must be an integer between 1 and 20") from exc
+    if not 1 <= limit <= 20:
+        raise HTTPException(status_code=422, detail="k must be an integer between 1 and 20")
+
+    recall_res = orchestrator.query_semantic_memory(query=question, limit=limit)
     matches = recall_res.get("matches", [])
     context = [f"[{m.get('speaker', 'Speaker')}]: {m.get('text', '')}" for m in matches]
 
@@ -521,8 +554,8 @@ def official_ask_endpoint(body: dict[str, Any] = Body(...)):
             )
             if lyzr_resp.status_code == 200:
                 lyzr_answer = lyzr_resp.json().get("response")
-        except Exception as e:
-            print("Lyzr Studio API fallback:", e)
+        except Exception:
+            logger.exception("Lyzr Studio API fallback")
 
     synthesis = orchestrator.synthesizer.synthesize(
         title=f"Memory Retrieval ({uid})",
@@ -545,6 +578,8 @@ def forget_memory(session_id: str | None = None, point_id: str | None = None):
     """
     Privacy-First Knowledge Control: Deletes specific memory points or entire sessions from Qdrant.
     """
+    if not session_id and point_id is None:
+        raise HTTPException(status_code=400, detail="Provide session_id or point_id")
     deleted = orchestrator.memory.delete_memory(session_id=session_id, point_id=point_id)
     return {"status": "deleted" if deleted else "not_found", "session_id": session_id, "point_id": point_id}
 

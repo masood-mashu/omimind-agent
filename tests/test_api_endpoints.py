@@ -19,7 +19,7 @@ from backend.main import app
 
 @pytest.fixture(scope="module")
 def client():
-    return TestClient(app)
+    return TestClient(app, headers={"x-api-key": "test-secret"})
 
 class TestApiEndpoints:
     def test_health_check(self, client):
@@ -56,6 +56,10 @@ class TestApiEndpoints:
     def test_query_validation_error(self, client):
         # Missing required 'question' field should return 422
         resp = client.post("/api/query", json={})
+        assert resp.status_code == 422
+
+    def test_query_limit_is_bounded(self, client):
+        resp = client.post("/api/query", json={"question": "budget", "limit": 21})
         assert resp.status_code == 422
 
     def test_process_preset_meeting_success(self, client):
@@ -163,6 +167,15 @@ class TestApiEndpoints:
         resp = client.post("/api/forget?session_id=rt_test")
         assert resp.status_code == 200
         assert resp.json()["status"] == "deleted"
+
+    def test_protected_endpoint_rejects_invalid_key(self):
+        unauthenticated = TestClient(app)
+        resp = unauthenticated.post("/api/forget?session_id=rt_test")
+        assert resp.status_code == 401
+
+    def test_missing_delete_target_is_rejected(self, client):
+        resp = client.post("/api/forget")
+        assert resp.status_code == 400
 
     def test_structured_error_handling_and_telemetry(self, client):
         # 404 with structured error schema

@@ -9,6 +9,8 @@ services:
     environment:
       - PORT=8000
       - PYTHONUNBUFFERED=1
+      - API_SECRET_KEY=${API_SECRET_KEY:?Set API_SECRET_KEY before starting the container}
+      - ALLOWED_ORIGINS=${ALLOWED_ORIGINS:-http://localhost:8000}
     volumes:
       - ./qdrant_storage:/app/qdrant_storage
     restart: unless-stopped
