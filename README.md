@@ -19,12 +19,12 @@
 > ❓ **Official Question Endpoint:** `POST https://omimind-agent.vercel.app/ask` *(Grounded Q&A via Qdrant memory + Lyzr Studio Cloud)*  
 > 🛡️ **Privacy & GDPR Compliance:** `POST /api/forget?session_id=...` *(Instant vector deletion from Qdrant Cloud)*  
 > 🔌 **Native Model Context Protocol:** `python mcp_server.py` *(JSON-RPC stdio tools for Claude, Cursor, Antigravity)*  
-> 📖 **Architecture & Deep-Dive Documents:**  
+> 📖 **Deep-Dive Engineering Documentation:**  
 > - ⚡ [End-to-End Execution Flow (`docs/EXECUTION_FLOW.md`)](docs/EXECUTION_FLOW.md)  
-> - 🏛️ [System Architecture Diagram (`docs/ARCHITECTURE.md`)](docs/ARCHITECTURE.md)  
+> - 🏛️ [System Architecture (`docs/ARCHITECTURE.md`)](docs/ARCHITECTURE.md)  
 > - 🌊 [Data Flow & Lifecycle (`docs/DATA_FLOW.md`)](docs/DATA_FLOW.md)  
 > - ⏱️ [Chronological Sequence Diagram (`docs/SEQUENCE_DIAGRAM.md`)](docs/SEQUENCE_DIAGRAM.md)  
-> - 🎙️ [Track 1: Meeting Intelligence Formal Rubric Analysis (`docs/TRACK_1_ANALYSIS.md`)](docs/TRACK_1_ANALYSIS.md)  
+> - 🎙️ [Track 1: Meeting Intelligence Analysis (`docs/TRACK_1_ANALYSIS.md`)](docs/TRACK_1_ANALYSIS.md)  
 > - 🎬 [Five-Minute Hackathon Demo Script (`docs/DEMO_SCRIPT.md`)](docs/DEMO_SCRIPT.md)
 
 ---
@@ -60,8 +60,6 @@ OmiMind satisfies 100% of Track 1 requirements with production-grade rigor:
 
 ## 🏛️ System Architecture
 
-![OmiMind System Architecture](docs/assets/omimind_architecture_diagram.jpg)
-
 ```mermaid
 flowchart TD
     User["🎙️ Omi Wearable / Ambient Audio"] -->|Live Audio Streams| Omi["Omi Voice Webhook Layer"]
@@ -95,6 +93,13 @@ flowchart TD
         MCP_Server["mcp_server.py (JSON-RPC stdio)"] <--> Qdrant
         MCP_Server <--> ExternalAgents["Claude Desktop / Cursor / Antigravity"]
     end
+
+    classDef external fill:#172554,stroke:#60a5fa,color:#dbeafe;
+    classDef service fill:#064e3b,stroke:#34d399,color:#d1fae5;
+    classDef store fill:#3f1d5b,stroke:#c084fc,color:#f3e8ff;
+    class User,Omi,LyzrStudio,ExternalAgents external;
+    class FastAPIServer,MemAgent,A1,A2,A3,A4,A5,MCP_Server service;
+    class Qdrant store;
 ```
 
 ---
