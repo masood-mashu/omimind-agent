@@ -276,6 +276,30 @@ class QdrantMemoryAgent:
         matches.sort(key=lambda m: m["score"], reverse=True)
         return matches[:limit]
 
+    def delete_memory(self, session_id: str | None = None, point_id: int | str | None = None) -> bool:
+        """
+        Deletes points by point_id or by session_id filter for user privacy control.
+        """
+        try:
+            if point_id is not None:
+                p_id = int(point_id) if str(point_id).isdigit() else str(point_id)
+                self.client.delete(
+                    collection_name=COLLECTION_NAME,
+                    points_selector=[p_id]
+                )
+                return True
+            if session_id:
+                self.client.delete(
+                    collection_name=COLLECTION_NAME,
+                    points_selector=Filter(
+                        must=[FieldCondition(key="session_id", match=MatchValue(value=session_id))]
+                    )
+                )
+                return True
+        except Exception:
+            return False
+        return False
+
     def get_stats(self) -> dict[str, Any]:
         info = self.client.get_collection(collection_name=COLLECTION_NAME)
         return {

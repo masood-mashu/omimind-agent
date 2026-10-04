@@ -61,3 +61,5 @@ class LyzrExecutiveSynthesizer:
             "strategic_recommendation": "Review assigned action items prior to the upcoming synchronization milestone."
         }
         return summary
+
+    synthesize = synthesize_meeting

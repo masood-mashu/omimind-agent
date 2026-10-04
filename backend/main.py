@@ -10,7 +10,7 @@ import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Body, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
@@ -323,6 +323,92 @@ def query_memory(req: QueryRequest):
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty")
     return orchestrator.query_semantic_memory(query=req.question, limit=req.limit or 4)
+
+# ─── Official Hackathon Guide Endpoints (Lyzr × Qdrant × Omi) ────────────────
+
+@app.post("/omi/conversation")
+def omi_conversation_webhook(uid: str = "default_user", payload: dict[str, Any] = Body(...)):
+    """
+    Official Guide Endpoint: Fires after an Omi conversation ends.
+    Ingests full transcript segments, structured overview, and indexes to Qdrant.
+    """
+    segments = payload.get("transcript_segments", [])
+    overview = (payload.get("structured") or {}).get("overview", "")
+    lines = []
+    for s in segments:
+        text = s.get("text", "").strip()
+        if text:
+            lines.append({
+                "speaker": s.get("speaker", "Speaker"),
+                "text": text,
+                "timestamp_str": time.strftime("%H:%M:%S", time.gmtime())
+            })
+    if not lines and overview:
+        lines = [{"speaker": "Overview", "text": overview, "timestamp_str": "00:00"}]
+
+    if lines:
+        dossier = orchestrator.process_session(
+            session_id=f"conv_{uid}_{int(time.time())}",
+            title=payload.get("structured", {}).get("title", f"Omi Memory ({uid})"),
+            transcript_lines=lines
+        )
+        return {"status": "ok", "vectors_count": dossier["indexed_vectors_count"]}
+    return {"status": "empty"}
+
+@app.post("/omi/realtime")
+def omi_realtime_webhook(uid: str = "default_user", session_id: str = "", payload: Any = Body(...)):
+    """
+    Official Guide Endpoint: Real-time transcript stream chunks from Omi device.
+    """
+    segments = payload if isinstance(payload, list) else payload.get("segments", [])
+    indexed = 0
+    for s in segments:
+        t = s.get("text", "").strip()
+        if t:
+            orchestrator.memory.index_utterance(
+                session_id=session_id or f"realtime_{uid}",
+                speaker=s.get("speaker", "Omi User"),
+                text=t,
+                timestamp=float(s.get("start", 0)),
+                timestamp_str="live"
+            )
+            indexed += 1
+    return {"status": "ok", "indexed": indexed}
+
+@app.post("/ask")
+def official_ask_endpoint(body: dict[str, Any] = Body(...)):
+    """
+    Official Guide Endpoint: Retrieves memories from Qdrant and calls Lyzr agent synthesis.
+    """
+    uid = body.get("uid", "default_user")
+    question = body.get("question", "").strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="Question cannot be empty")
+
+    recall_res = orchestrator.query_semantic_memory(query=question, limit=int(body.get("k", 5)))
+    matches = recall_res.get("recalled_memories", [])
+    context = [f"[{m.get('speaker', 'Speaker')}]: {m.get('text', '')}" for m in matches]
+
+    synthesis = orchestrator.synthesizer.synthesize(
+        title=f"Memory Retrieval ({uid})",
+        transcript_lines=[{"speaker": m.get("speaker", "Speaker"), "text": m.get("text", ""), "timestamp_str": m.get("timestamp_str", "00:00")} for m in matches]
+    )
+
+    return {
+        "answer": synthesis.get("executive_summary", "No relevant context found."),
+        "context": context,
+        "action_items": synthesis.get("action_items", []),
+        "key_decisions": synthesis.get("key_decisions", [])
+    }
+
+@app.post("/api/forget")
+@app.delete("/api/memory")
+def forget_memory(session_id: str | None = None, point_id: str | None = None):
+    """
+    Privacy-First Knowledge Control: Deletes specific memory points or entire sessions from Qdrant.
+    """
+    deleted = orchestrator.memory.delete_memory(session_id=session_id, point_id=point_id)
+    return {"status": "deleted" if deleted else "not_found", "session_id": session_id, "point_id": point_id}
 
 # â”€â”€â”€ Frontend static files â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 

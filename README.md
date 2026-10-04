@@ -9,9 +9,14 @@
 [![Hackathon: Stop Prompting](https://img.shields.io/badge/HiDevs%20Hackathon-Track%201%3A%20Meeting%20Intelligence-orange.svg)](https://app.hidevs.xyz/hackathons/stop-prompting-solo-agents-hackathon-2026)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-omimind--agent.vercel.app-brightgreen.svg)](https://omimind-agent.vercel.app/)
 
-> 🌐 **Live Demo:** [https://omimind-agent.vercel.app/](https://omimind-agent.vercel.app/)  
-> 📡 **Omi Webhook URL:** `POST https://omimind-agent.vercel.app/api/omi-webhook`  
-> 🔌 **MCP Server:** `python mcp_server.py` (Model Context Protocol stdio)
+> 🌐 **Live Production Demo:** [https://omimind-agent.vercel.app/](https://omimind-agent.vercel.app/)  
+> 📡 **Omi Webhook Endpoints:**  
+> - `POST https://omimind-agent.vercel.app/omi/conversation` *(Official Guide: Memory creation trigger)*  
+> - `POST https://omimind-agent.vercel.app/omi/realtime` *(Official Guide: Real-time chunk stream)*  
+> - `POST https://omimind-agent.vercel.app/api/omi-webhook` *(Native Omi segment receiver)*  
+> ❓ **Official Question Endpoint:** `POST https://omimind-agent.vercel.app/ask`  
+> 🛡️ **Privacy & User Control:** `POST /api/forget?session_id=...` *(Purge vectors from Qdrant)*  
+> 🔌 **Native MCP Server:** `python mcp_server.py` *(Model Context Protocol stdio tools)*
 
 An autonomous, memory-backed chief of staff built for the **Omi AI Wearable**. OmiMind continuously ingests ambient meeting conversations, lectures, and voice memos — indexes every utterance into **Qdrant Cloud** for permanent semantic recall — and orchestrates a **Lyzr 5-Agent Swarm** that streams live execution events via SSE as it autonomously extracts commitments, synthesizes executive dossiers, dispatches Jira tickets, and schedules calendar events with Google Meet and iCal links.
 

@@ -126,3 +126,40 @@ class TestApiEndpoints:
         with client.stream("POST", "/api/custom-voice-stream", json=payload) as stream_resp:
             assert stream_resp.status_code == 200
             assert "text/event-stream" in stream_resp.headers["content-type"]
+
+    def test_official_omi_conversation_webhook(self, client):
+        payload = {
+            "transcript_segments": [
+                {"speaker": "Alice", "text": "I will prepare the presentation by Thursday."}
+            ],
+            "structured": {
+                "title": "Project Review",
+                "overview": "Discussion on deliverables."
+            }
+        }
+        resp = client.post("/omi/conversation?uid=test_user", json=payload)
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "ok"
+
+    def test_official_omi_realtime_webhook(self, client):
+        payload = {
+            "segments": [
+                {"speaker": "Bob", "text": "Starting deployment now.", "start": 0.0}
+            ]
+        }
+        resp = client.post("/omi/realtime?uid=test_user&session_id=rt_test", json=payload)
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "ok"
+        assert resp.json()["indexed"] == 1
+
+    def test_official_ask_endpoint(self, client):
+        resp = client.post("/ask", json={"uid": "test_user", "question": "What did Alice prepare?"})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "answer" in data
+        assert "context" in data
+
+    def test_forget_endpoint(self, client):
+        resp = client.post("/api/forget?session_id=rt_test")
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "deleted"
