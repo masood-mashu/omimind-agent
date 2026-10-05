@@ -7,19 +7,27 @@ from typing import Any
 from agents.action_extractor import LyzrActionExtractor
 from agents.calendar_scheduler import LyzrCalendarScheduler
 from agents.executive_synth import LyzrExecutiveSynthesizer
+from agents.lyzr_client import LyzrClient
 from agents.memory_agent import QdrantMemoryAgent
 from agents.task_dispatcher import LyzrTaskDispatcher
 
 
 class OmiMindOrchestrator:
-    def __init__(self, storage_path: str = "./qdrant_storage"):
+    def __init__(self, storage_path: str = "./qdrant_storage", lyzr_client: LyzrClient | None = None):
         self.memory = QdrantMemoryAgent(storage_path=storage_path)
         self.extractor = LyzrActionExtractor()
         self.synthesizer = LyzrExecutiveSynthesizer()
         self.dispatcher = LyzrTaskDispatcher()
         self.scheduler = LyzrCalendarScheduler()
+        self.lyzr = lyzr_client or LyzrClient()
 
-    def process_session(self, session_id: str, title: str, transcript_lines: list[dict[str, str]]) -> dict[str, Any]:
+    def process_session(
+        self,
+        session_id: str,
+        title: str,
+        transcript_lines: list[dict[str, str]],
+        uid: str = "default_user",
+    ) -> dict[str, Any]:
         """
         Ingests a complete meeting/lecture session:
         1. Embeds each line into Qdrant vector memory with metadata payloads.
@@ -37,11 +45,22 @@ class OmiMindOrchestrator:
                 timestamp=float(i * 15),
                 timestamp_str=line.get("timestamp_str", f"00:{i*15:02d}"),
                 topic=line.get("topic", "general"),
-                urgency=line.get("urgency", "normal")
+                urgency=line.get("urgency", "normal"),
+                uid=uid,
             )
             indexed_points.append(p_id)
 
-        # Agent 2: Action items (LyzrActionExtractor)
+        context = self.memory.search_memory(
+            query=f"Summarize the meeting and extract decisions, risks, and action items for {title}",
+            limit=min(8, max(1, len(transcript_lines))),
+        )
+        lyzr_result = self.lyzr.reason(
+            uid=session_id,
+            question="Produce grounded meeting intelligence from the supplied transcript context.",
+            context=context,
+        )
+
+        # Deterministic executors validate and format the structured outputs.
         action_items = self.extractor.extract_from_transcript(transcript_lines)
 
         # Agent 3: Executive synthesis (LyzrExecutiveSynthesizer)
@@ -62,14 +81,20 @@ class OmiMindOrchestrator:
             "action_items": action_items,
             "email_draft": email_draft,
             "jira_tickets": jira_tickets,
-            "calendar_events": calendar_events
+            "calendar_events": calendar_events,
+            "reasoning": {
+                "provider": lyzr_result.provider,
+                "agent_id": lyzr_result.agent_id,
+                "response": lyzr_result.text,
+                "error": lyzr_result.error,
+            }
         }
 
-    def query_semantic_memory(self, query: str, limit: int = 4) -> dict[str, Any]:
+    def query_semantic_memory(self, query: str, limit: int = 4, uid: str | None = None) -> dict[str, Any]:
         """
         Semantic Q&A over past audio transcripts stored in Qdrant.
         """
-        results = self.memory.search_memory(query=query, limit=limit)
+        results = self.memory.search_memory(query=query, limit=limit, uid=uid)
 
         if not results:
             answer = f"No direct conversational records found in Qdrant matching '{query}'."

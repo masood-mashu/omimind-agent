@@ -88,8 +88,9 @@ class TestApiEndpoints:
         resp = client.post("/api/omi-webhook", json=payload)
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] == "indexed"
+        assert data["status"] == "accepted"
         assert data["session_id"] == "pytest_omi_session"
+        assert data["vectors_queued"] == 2
 
     def test_omi_webhook_with_flat_transcript(self, client):
         payload = {
@@ -98,7 +99,7 @@ class TestApiEndpoints:
         resp = client.post("/api/omi-webhook", json=payload)
         assert resp.status_code == 200
         data = resp.json()
-        assert data["status"] == "indexed"
+        assert data["status"] == "accepted"
 
     def test_seed_endpoint(self, client):
         resp = client.post("/api/seed")
@@ -119,6 +120,8 @@ class TestApiEndpoints:
             # Confirm agents are streamed
             agents_streamed = {e.get("agent") for e in events if e.get("agent")}
             assert "MemoryAgent" in agents_streamed
+            assert "QdrantRetrieval" in agents_streamed
+            assert "LyzrManager" in agents_streamed
             assert "TaskDispatcher" in agents_streamed
 
     def test_custom_voice_stream_sse(self, client):
@@ -143,7 +146,7 @@ class TestApiEndpoints:
         }
         resp = client.post("/omi/conversation?uid=test_user", json=payload)
         assert resp.status_code == 200
-        assert resp.json()["status"] == "ok"
+        assert resp.json()["status"] == "accepted"
 
     def test_official_omi_realtime_webhook(self, client):
         payload = {
@@ -153,8 +156,8 @@ class TestApiEndpoints:
         }
         resp = client.post("/omi/realtime?uid=test_user&session_id=rt_test", json=payload)
         assert resp.status_code == 200
-        assert resp.json()["status"] == "ok"
-        assert resp.json()["indexed"] == 1
+        assert resp.json()["status"] == "accepted"
+        assert resp.json()["indexed_queued"] == 1
 
     def test_official_ask_endpoint(self, client):
         resp = client.post("/ask", json={"uid": "test_user", "question": "What did Alice prepare?"})

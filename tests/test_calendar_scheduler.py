@@ -60,3 +60,11 @@ class TestLyzrCalendarScheduler:
         ]
         events = scheduler.extract_calendar_events(transcript)
         assert events == []
+
+    def test_document_review_deadline_is_not_calendar_event(self, scheduler):
+        transcript = [{
+            "speaker": "Sarah",
+            "text": "I will review the ScaleCloud vendor contract by Friday.",
+            "timestamp_str": "01:20",
+        }]
+        assert scheduler.extract_calendar_events(transcript) == []

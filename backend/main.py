@@ -11,7 +11,7 @@ import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from fastapi import Body, FastAPI, HTTPException, Request
+from fastapi import BackgroundTasks, Body, FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -133,8 +133,13 @@ async def security_and_telemetry_middleware(request: Request, call_next):
             x_api_key = request.headers.get("x-api-key")
             auth_header = request.headers.get("authorization", "")
             bearer_token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else None
-            token = x_api_key or bearer_token
-            if token != secret:
+            omi_token = request.headers.get("x-omi-webhook-secret")
+            token = x_api_key or bearer_token or omi_token
+            allowed_tokens = {secret}
+            if request.url.path in {"/api/omi-webhook", "/omi/conversation", "/omi/realtime"}:
+                if settings.omi_webhook_secret:
+                    allowed_tokens.add(settings.omi_webhook_secret)
+            if token not in allowed_tokens:
                 return JSONResponse(
                     status_code=401,
                     content={
@@ -267,7 +272,12 @@ def process_meeting(req: ProcessRequest):
 
 # â”€â”€â”€ SSE Streaming Pipeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-async def _stream_pipeline(session_id: str, title: str, lines: list[dict]) -> AsyncGenerator[str, None]:
+async def _stream_pipeline(
+    session_id: str,
+    title: str,
+    lines: list[dict],
+    uid: str = "default_user",
+) -> AsyncGenerator[str, None]:
     """Yields SSE events for each agent stage so the frontend can animate them."""
 
     def sse(data: dict) -> str:
@@ -286,13 +296,37 @@ async def _stream_pipeline(session_id: str, title: str, lines: list[dict]) -> As
             timestamp=float(i * 15),
             timestamp_str=line.get("timestamp_str", f"00:{i*15:02d}"),
             topic=line.get("topic", "general"),
-            urgency=line.get("urgency", "normal")
+            urgency=line.get("urgency", "normal"),
+            uid=uid,
         )
         indexed_points.append(p_id)
 
     yield sse({"agent": "MemoryAgent", "status": "done",
                 "message": f"{len(indexed_points)} vectors stored in omi_ambient_memory collection.",
                 "count": len(indexed_points)})
+
+    # Mandatory Track 1 bridge: retrieve from Qdrant, then call Lyzr.
+    yield sse({"agent": "QdrantRetrieval", "status": "running",
+                "message": "Retrieving relevant meeting context from persistent Qdrant memory..."})
+    retrieved_context = orchestrator.memory.search_memory(
+        query=f"Meeting intelligence for {title}",
+        limit=min(8, max(1, len(lines))),
+    )
+    yield sse({"agent": "QdrantRetrieval", "status": "done",
+                "message": f"{len(retrieved_context)} relevant transcript memories retrieved.",
+                "count": len(retrieved_context)})
+
+    yield sse({"agent": "LyzrManager", "status": "running",
+                "message": "Sending grounded context to the configured Lyzr Manager..."})
+    lyzr_result = orchestrator.lyzr.reason(
+        uid=session_id,
+        question="Produce grounded meeting intelligence from the supplied transcript context.",
+        context=retrieved_context,
+    )
+    yield sse({"agent": "LyzrManager", "status": "done",
+                "message": f"Reasoning provider: {lyzr_result.provider}.",
+                "provider": lyzr_result.provider,
+                "error": lyzr_result.error})
 
     # Agent 2: Action extraction
     yield sse({"agent": "ActionExtractor", "status": "running",
@@ -347,6 +381,12 @@ async def _stream_pipeline(session_id: str, title: str, lines: list[dict]) -> As
         "email_draft": email_draft,
         "jira_tickets": jira_tickets,
         "calendar_events": calendar_events
+        ,"reasoning": {
+            "provider": lyzr_result.provider,
+            "agent_id": lyzr_result.agent_id,
+            "response": lyzr_result.text,
+            "error": lyzr_result.error,
+        }
     }
     processed_cache[session_id] = dossier
     yield sse({"type": "complete", "dossier": dossier})
@@ -397,8 +437,17 @@ def ingest_custom_voice(req: CustomVoiceRequest):
 
 # â”€â”€â”€ Omi Native Webhook â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+def _process_omi_webhook(session_id: str, lines: list[dict[str, Any]]) -> None:
+    dossier = orchestrator.process_session(
+        session_id=session_id,
+        title="Omi Live Session",
+        transcript_lines=lines,
+    )
+    processed_cache[session_id] = dossier
+
+
 @app.post("/api/omi-webhook")
-def omi_webhook(req: OmiWebhookRequest):
+def omi_webhook(req: OmiWebhookRequest, background_tasks: BackgroundTasks):
     """
     Native Omi device webhook endpoint.
     Accepts Omi's standard segment payload or a flat transcript string.
@@ -426,13 +475,8 @@ def omi_webhook(req: OmiWebhookRequest):
     if not lines:
         raise HTTPException(status_code=400, detail="No valid utterances found in payload")
 
-    dossier = orchestrator.process_session(
-        session_id=session_id,
-        title="Omi Live Session",
-        transcript_lines=lines
-    )
-    processed_cache[session_id] = dossier
-    return {"status": "indexed", "session_id": session_id, "vectors": dossier["indexed_vectors_count"]}
+    background_tasks.add_task(_process_omi_webhook, session_id, lines)
+    return {"status": "accepted", "session_id": session_id, "vectors_queued": len(lines)}
 
 # â”€â”€â”€ Seed endpoint â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -458,8 +502,22 @@ def query_memory(req: QueryRequest):
 
 # ─── Official Hackathon Guide Endpoints (Lyzr × Qdrant × Omi) ────────────────
 
+def _process_omi_conversation(uid: str, lines: list[dict[str, Any]], title: str) -> None:
+    dossier = orchestrator.process_session(
+        session_id=f"conv_{uid}_{int(time.time())}",
+        title=title,
+        transcript_lines=lines,
+        uid=uid,
+    )
+    processed_cache[dossier["session_id"]] = dossier
+
+
 @app.post("/omi/conversation")
-def omi_conversation_webhook(uid: str = "default_user", payload: dict[str, Any] = Body(...)):
+def omi_conversation_webhook(
+    background_tasks: BackgroundTasks,
+    uid: str = "default_user",
+    payload: dict[str, Any] = Body(...),
+):
     """
     Official Guide Endpoint: Fires after an Omi conversation ends.
     Ingests full transcript segments, structured overview, and indexes to Qdrant.
@@ -479,16 +537,37 @@ def omi_conversation_webhook(uid: str = "default_user", payload: dict[str, Any] 
         lines = [{"speaker": "Overview", "text": overview, "timestamp_str": "00:00"}]
 
     if lines:
-        dossier = orchestrator.process_session(
-            session_id=f"conv_{uid}_{int(time.time())}",
-            title=payload.get("structured", {}).get("title", f"Omi Memory ({uid})"),
-            transcript_lines=lines
+        structured = payload.get("structured") or {}
+        background_tasks.add_task(
+            _process_omi_conversation,
+            uid,
+            lines,
+            structured.get("title", f"Omi Memory ({uid})"),
         )
-        return {"status": "ok", "vectors_count": dossier["indexed_vectors_count"]}
+        return {"status": "accepted", "queued_segments": len(lines), "uid": uid}
     return {"status": "empty"}
 
+def _index_omi_realtime(uid: str, session_id: str, segments: list[dict[str, Any]]) -> None:
+    for s in segments:
+        t = s.get("text", "").strip()
+        if t:
+            orchestrator.memory.index_utterance(
+                session_id=session_id or f"realtime_{uid}",
+                speaker=s.get("speaker", "Omi User"),
+                text=t,
+                timestamp=float(s.get("start", 0)),
+                timestamp_str="live",
+                uid=uid,
+            )
+
+
 @app.post("/omi/realtime")
-def omi_realtime_webhook(uid: str = "default_user", session_id: str = "", payload: Any = Body(...)):
+def omi_realtime_webhook(
+    background_tasks: BackgroundTasks,
+    uid: str = "default_user",
+    session_id: str = "",
+    payload: Any = Body(...),
+):
     """
     Official Guide Endpoint: Real-time transcript stream chunks from Omi device.
     """
@@ -498,18 +577,12 @@ def omi_realtime_webhook(uid: str = "default_user", session_id: str = "", payloa
         t = s.get("text", "").strip()
         if t:
             try:
-                timestamp = float(s.get("start", 0))
+                float(s.get("start", 0))
             except (TypeError, ValueError) as exc:
                 raise HTTPException(status_code=422, detail="Segment start must be numeric") from exc
-            orchestrator.memory.index_utterance(
-                session_id=session_id or f"realtime_{uid}",
-                speaker=s.get("speaker", "Omi User"),
-                text=t,
-                timestamp=timestamp,
-                timestamp_str="live"
-            )
             indexed += 1
-    return {"status": "ok", "indexed": indexed}
+    background_tasks.add_task(_index_omi_realtime, uid, session_id, segments)
+    return {"status": "accepted", "indexed_queued": indexed}
 
 @app.post("/ask")
 def official_ask_endpoint(body: dict[str, Any] = Body(...)):
@@ -528,46 +601,24 @@ def official_ask_endpoint(body: dict[str, Any] = Body(...)):
     if not 1 <= limit <= 20:
         raise HTTPException(status_code=422, detail="k must be an integer between 1 and 20")
 
-    recall_res = orchestrator.query_semantic_memory(query=question, limit=limit)
+    recall_res = orchestrator.query_semantic_memory(query=question, limit=limit, uid=uid)
     matches = recall_res.get("matches", [])
     context = [f"[{m.get('speaker', 'Speaker')}]: {m.get('text', '')}" for m in matches]
 
-    # Live Lyzr Agent Studio integration (Section 7 of Official Hackathon Guide)
-    lyzr_api_key = os.environ.get("LYZR_API_KEY")
-    lyzr_agent_id = os.environ.get("LYZR_AGENT_ID")
-    lyzr_answer = None
-
-    if lyzr_api_key and lyzr_agent_id:
-        try:
-            import httpx
-            ctx_text = "\n".join("- " + c for c in context) or "none"
-            lyzr_resp = httpx.post(
-                "https://agent-prod.studio.lyzr.ai/v3/inference/chat/",
-                headers={"Content-Type": "application/json", "x-api-key": lyzr_api_key},
-                json={
-                    "user_id": os.environ.get("LYZR_USER_ID", uid),
-                    "agent_id": lyzr_agent_id,
-                    "session_id": f"{lyzr_agent_id}-{uid}",
-                    "message": f"CONTEXT:\n{ctx_text}\n\nQUESTION: {question}",
-                },
-                timeout=30.0
-            )
-            if lyzr_resp.status_code == 200:
-                lyzr_answer = lyzr_resp.json().get("response")
-        except Exception:
-            logger.exception("Lyzr Studio API fallback")
+    lyzr_result = orchestrator.lyzr.reason(uid=uid, question=question, context=matches)
 
     synthesis = orchestrator.synthesizer.synthesize(
         title=f"Memory Retrieval ({uid})",
         transcript_lines=[{"speaker": m.get("speaker", "Speaker"), "text": m.get("text", ""), "timestamp_str": m.get("timestamp_str", "00:00")} for m in matches]
     )
 
-    final_answer = lyzr_answer or synthesis.get("executive_summary", "No relevant context found.")
+    final_answer = lyzr_result.text or synthesis.get("executive_summary", "No relevant context found.")
 
     return {
         "answer": final_answer,
-        "source": "lyzr_studio_cloud" if lyzr_answer else "lyzr_local_swarm",
+        "source": lyzr_result.provider,
         "context": context,
+        "reasoning_error": lyzr_result.error,
         "action_items": synthesis.get("action_items", []),
         "key_decisions": synthesis.get("key_decisions", [])
     }

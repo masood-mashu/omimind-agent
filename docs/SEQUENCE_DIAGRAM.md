@@ -1,6 +1,6 @@
 # OmiMind End-to-End Sequence Diagram
 
-This sequence details chronological interactions across the Omi wearable, FastAPI ingestion, Qdrant Cloud vector memory, the Lyzr 5-agent swarm (with live SSE updates), and Lyzr Studio Cloud inference.
+This sequence details chronological interactions across the Omi wearable, FastAPI ingestion, Qdrant vector memory, Lyzr Manager reasoning (with live SSE updates), and deterministic user-controlled outputs.
 
 ```mermaid
 sequenceDiagram
@@ -19,11 +19,11 @@ sequenceDiagram
     Omi->>API: POST /omi/conversation or /api/omi-webhook
     API-->>Omi: HTTP 200 OK (< 50ms fast-ack)
 
-    Note over API,Q: Phase 2: Vector Memory & Lyzr 5-Agent Swarm
+    Note over API,Q: Phase 2: Vector Memory & Lyzr Manager Reasoning
     UI->>API: POST /api/process-stream (or /api/custom-voice-stream)
     API-->>UI: SSE: MemoryAgent [RUNNING]
     API->>Orch: Index transcript utterances
-    Orch->>Q: Upsert 128-dim embeddings + speaker metadata
+    Orch->>Q: Upsert 384-dim FastEmbed embeddings + speaker metadata
     Q-->>Orch: Stored vector point IDs
     API-->>UI: SSE: MemoryAgent [DONE] (Indexed vector count)
 

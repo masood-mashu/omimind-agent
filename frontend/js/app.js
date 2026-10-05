@@ -1,6 +1,6 @@
 /**
  * app.js - Main Client Controller for OmiMind (v2.1)
- * Ambient Audio Canvas Waveform + 5-Agent Swarm Stream Controller
+ * Ambient Audio Canvas Waveform + Observable Qdrant/Lyzr Stream Controller
  */
 import * as api from './api.js';
 import * as ui from './ui.js';
@@ -27,7 +27,7 @@ window.selectMeeting = function(id) {
 async function runStreamingPipeline(endpoint, body) {
   ui.showPipelinePanel();
   const btn = document.getElementById('btn-process');
-  if (btn) { btn.innerText = 'Running 5-Agent Swarm...'; btn.disabled = true; }
+  if (btn) { btn.innerText = 'Running Qdrant → Lyzr pipeline...'; btn.disabled = true; }
   isAudioActive = true;
 
   try {
@@ -57,7 +57,7 @@ async function runStreamingPipeline(endpoint, body) {
             ui.renderDossier(event.dossier);
             const badge = document.getElementById('qdrant-points-badge');
             if (badge) badge.innerText = `${event.dossier.indexed_vectors_count} Vectors`;
-            ui.showToast('5-Agent Swarm Orchestration Complete!');
+            ui.showToast('Qdrant → Lyzr pipeline complete');
           } else {
             ui.updatePipelineAgent(event);
           }

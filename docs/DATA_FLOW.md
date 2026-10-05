@@ -6,10 +6,10 @@ This document details the data lifecycle from voice capture through vectorizatio
 flowchart TD
     Capture["🎙️ Omi Wearable / Microphone Audio"] --> Normalize["FastAPI Validation & Speaker Diarisation"]
     Normalize --> Session["Session ID + Speaker Attribution + Timestamps"]
-    Session --> Embed["128-Dimensional Vectorization"]
+    Session --> Embed["384-Dimensional FastEmbed Vectorization"]
     Embed --> Store[("Qdrant Cloud: `omi_ambient_memory`<br/>Persistent Vector Index")]
 
-    Session --> Pipeline["Lyzr 5-Agent Swarm (SSE Stream)"]
+    Session --> Pipeline["Qdrant Retrieval → Lyzr Manager (SSE Stream)"]
     Pipeline --> Extract["Action Items & Kanban<br/>Assignees + Deadlines + Priority Tags"]
     Pipeline --> Brief["Executive Dossier<br/>Decisions + Technical Risks"]
     Pipeline --> Dispatch["Follow-Up Communications<br/>1-Click Gmail + Jira Tickets"]

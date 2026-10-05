@@ -13,7 +13,8 @@ UTC = timezone.utc
 class LyzrCalendarScheduler:
     def __init__(self):
         self.trigger_patterns = [
-            re.compile(r"(?:let's|let us|can we|we should|i will|we need to)\s+(?:schedule|meet|sync|set up a meeting|have a call|review)", re.IGNORECASE),
+            re.compile(r"(?:let's|let us|can we|we should)\s+(?:schedule|meet|sync|set up a meeting|have a call)", re.IGNORECASE),
+            re.compile(r"(?:schedule|book|set up)\s+(?:a\s+)?(?:meeting|call|sync|review)", re.IGNORECASE),
             re.compile(r"(?:schedule|meeting|sync|follow-up)\s+(?:on|next|tomorrow|this|at)", re.IGNORECASE),
         ]
         self.time_pattern = re.compile(r"\b(?:at\s+)?(\d{1,2}(?::\d{2})?\s*(?:am|pm|AM|PM))\b")

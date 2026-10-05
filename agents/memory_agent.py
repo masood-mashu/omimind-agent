@@ -21,7 +21,8 @@ from qdrant_client.models import (
 )
 
 COLLECTION_NAME = "omi_ambient_memory"
-VECTOR_DIM = 128
+VECTOR_DIM = 384
+EMBEDDING_MODEL_NAME = "BAAI/bge-small-en-v1.5"
 
 STOP_WORDS = {
     'what', 'when', 'why', 'who', 'how', 'which', 'where',
@@ -125,9 +126,35 @@ class SentenceTransformerEmbedding(BaseEmbeddingModel):
         return self._fallback.embed_text(text, dim=dim)
 
 
+class FastEmbedEmbedding(BaseEmbeddingModel):
+    """The hackathon guide's semantic embedding provider."""
+
+    def __init__(self, model_name: str = EMBEDDING_MODEL_NAME):
+        self.model_name = model_name
+        self._model = None
+
+    def _get_model(self):
+        if self._model is None:
+            from fastembed import TextEmbedding
+
+            self._model = TextEmbedding(self.model_name)
+        return self._model
+
+    def embed_text(self, text: str, dim: int = VECTOR_DIM) -> list[float]:
+        vector = next(iter(self._get_model().embed([text])))
+        values = vector.tolist() if hasattr(vector, "tolist") else list(vector)
+        if len(values) != dim:
+            raise ValueError(f"Embedding model returned {len(values)} dimensions; expected {dim}")
+        return values
+
+
 # Embedding Provider Factory
 def get_embedding_provider() -> BaseEmbeddingModel:
-    provider = os.environ.get("EMBEDDING_PROVIDER", "default").lower()
+    provider = os.environ.get("EMBEDDING_PROVIDER", "fastembed").lower()
+    if provider in ("test", "deterministic", "development") or "pytest" in sys.modules:
+        return DeterministicSubwordEmbedding()
+    if provider in ("fastembed", "production", "default"):
+        return FastEmbedEmbedding()
     if provider in ("sentence_transformers", "transformer", "production"):
         return SentenceTransformerEmbedding()
     return DeterministicSubwordEmbedding()
@@ -154,19 +181,19 @@ class QdrantMemoryAgent:
             qdrant_url = os.environ.get("QDRANT_URL") if not is_testing else None
             qdrant_api_key = os.environ.get("QDRANT_API_KEY") if not is_testing else None
 
-        if storage_path == ":memory:" or is_testing or (is_serverless and not qdrant_url):
+        allow_ephemeral = is_testing or os.environ.get("ALLOW_EPHEMERAL_MEMORY", "false").lower() == "true"
+        if storage_path == ":memory:" or allow_ephemeral:
             self.client = QdrantClient(":memory:")
         elif qdrant_url:
             # Qdrant Cloud — persistent across cold starts
             try:
                 self.client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key or None, timeout=5)
-            except Exception:
-                self.client = QdrantClient(":memory:")
+            except Exception as exc:
+                raise RuntimeError("Unable to connect to configured Qdrant service") from exc
         else:
-            try:
-                self.client = QdrantClient(path=storage_path)
-            except Exception:
-                self.client = QdrantClient(":memory:")
+            if is_serverless:
+                raise RuntimeError("Persistent Qdrant configuration is required in serverless production")
+            self.client = QdrantClient(path=storage_path)
 
         self._ensure_collection()
 
@@ -179,15 +206,8 @@ class QdrantMemoryAgent:
                     collection_name=COLLECTION_NAME,
                     vectors_config=VectorParams(size=VECTOR_DIM, distance=Distance.COSINE),
                 )
-        except Exception:
-            try:
-                self.client = QdrantClient(":memory:")
-                self.client.create_collection(
-                    collection_name=COLLECTION_NAME,
-                    vectors_config=VectorParams(size=VECTOR_DIM, distance=Distance.COSINE),
-                )
-            except Exception:
-                pass
+        except Exception as exc:
+            raise RuntimeError("Unable to initialize the persistent Qdrant collection") from exc
 
     def index_utterance(
         self,
@@ -197,7 +217,8 @@ class QdrantMemoryAgent:
         timestamp: float,
         timestamp_str: str,
         topic: str = "general",
-        urgency: str = "normal"
+        urgency: str = "normal",
+        uid: str = "default_user",
     ) -> str:
         """
         Embeds and stores an audio utterance from Omi into Qdrant vector memory.
@@ -212,7 +233,8 @@ class QdrantMemoryAgent:
             "timestamp": timestamp,
             "timestamp_str": timestamp_str,
             "topic": topic,
-            "urgency": urgency
+            "urgency": urgency,
+            "uid": uid,
         }
 
         point = PointStruct(
@@ -232,7 +254,8 @@ class QdrantMemoryAgent:
         query: str,
         limit: int = 4,
         speaker: str | None = None,
-        topic: str | None = None
+        topic: str | None = None,
+        uid: str | None = None,
     ) -> list[dict[str, Any]]:
         """
         Semantic vector search over past conversations with hybrid lexical & stem boost.
@@ -245,6 +268,8 @@ class QdrantMemoryAgent:
             conditions.append(FieldCondition(key="speaker", match=MatchValue(value=speaker)))
         if topic:
             conditions.append(FieldCondition(key="topic", match=MatchValue(value=topic)))
+        if uid:
+            conditions.append(FieldCondition(key="uid", match=MatchValue(value=uid)))
 
         if conditions:
             query_filter = Filter(must=conditions)

@@ -13,7 +13,7 @@ sequenceDiagram
     participant Omi as 🎙️ Omi Wearable / Browser Mic
     participant FastAPIServer as ⚡ FastAPI Application Engine
     participant QdrantCloud as 🗄️ Qdrant Cloud (`omi_ambient_memory`)
-    participant Swarm as 🐝 Lyzr 5-Agent Swarm
+    participant Swarm as 🤖 Lyzr Manager + Specialists
     participant Studio as ☁️ Lyzr Studio Cloud
     participant Client as 🖥️ Live Dashboard & Actions
 
@@ -22,11 +22,11 @@ sequenceDiagram
     Omi->>FastAPIServer: POST /omi/conversation or /api/omi-webhook
     FastAPIServer-->>Omi: HTTP 200 OK (< 50ms fast-ack)
 
-    Note over FastAPIServer,Swarm: Phase 2: Live SSE 5-Agent Pipeline
+    Note over FastAPIServer,Swarm: Phase 2: Live SSE Qdrant → Lyzr Pipeline
     Client->>FastAPIServer: POST /api/process-stream (or /api/custom-voice-stream)
     FastAPIServer-->>Client: SSE: MemoryAgent [RUNNING]
     FastAPIServer->>Swarm: 1. Vectorize & Index Utterances
-    Swarm->>QdrantCloud: Upsert 128-dim dense embeddings + metadata
+    Swarm->>QdrantCloud: Upsert 384-dim FastEmbed vectors + metadata
     QdrantCloud-->>Swarm: Point IDs committed
     FastAPIServer-->>Client: SSE: MemoryAgent [DONE] (Vector count badge)
 
@@ -63,7 +63,7 @@ sequenceDiagram
         Studio-->>FastAPIServer: Synthesized grounded response
     end
     FastAPIServer-->>Client: Grounded answer with verbatim citations & match score
-    Client-->>Attendee: Display 99%+ relevance match and quote
+    Client-->>Attendee: Display retrieved evidence, score, and grounded answer
 
     Note over Attendee,Client: Phase 4: Autonomous User Actions
     Attendee->>Client: Click "+ Google Meet" / "Send via Gmail" / "Download .ics"
@@ -79,11 +79,11 @@ sequenceDiagram
 2. **Sub-50ms Fast-Ack:** The server acknowledges incoming requests immediately with `{"status": "ok"}` to prevent mobile client timeouts.
 3. **Speaker Normalization:** Transcripts are normalized into speaker segments containing `speaker`, `timestamp`, `timestamp_str`, `session_id`, and `text`.
 
-### Phase 2: Lyzr 5-Agent Swarm & Live SSE Pipeline
+### Phase 2: Qdrant Retrieval, Lyzr Manager & Live SSE Pipeline
 The swarm is invoked via `POST /api/process-stream` or `POST /api/custom-voice-stream` using **Server-Sent Events (SSE)** for complete observability:
 
 1. **Agent 1: Memory Indexer (`agents/memory_agent.py`)**
-   - Embeds each spoken utterance into a **128-dimensional L2-normalized dense vector** (stop-word filtered, subword 3-gram and bigram context).
+   - Embeds each spoken utterance with **FastEmbed `BAAI/bge-small-en-v1.5` into 384-dimensional vectors**.
    - Commits vectors to the `omi_ambient_memory` collection on Qdrant Cloud.
    - Emits event: `{"agent": "MemoryAgent", "status": "completed", "vectors_indexed": N}`.
 
@@ -134,5 +134,5 @@ In compliance with the hackathon's privacy guidelines (*"Give the user control. 
 |---|---|---|
 | **Omi Webhook Acknowledgement** | `< 100ms` | **`< 35ms`** (HTTP 200 Fast-Ack) |
 | **Qdrant Cloud Hybrid Search** | `< 150ms` | **`< 45ms`** |
-| **5-Agent Swarm Full Execution** | `< 8s` | **`2.5s – 4.0s`** (Streaming SSE) |
+| **Connected pipeline execution** | seconds | Displayed from the actual run; no fixed SLA claim |
 | **Search Input Debounce** | `400ms` | **`400ms`** (Smooth UI responsiveness) |

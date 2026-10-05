@@ -1,6 +1,6 @@
 /**
  * ui.js - Presentation & DOM Rendering Components (v2.1)
- * Enhanced with 5-Agent Swarm, Calendar Invites, and Tactile Feedback
+ * Enhanced with observable Qdrant/Lyzr stages, Calendar Invites, and Tactile Feedback
  */
 
 let lastDossier = null;
@@ -298,12 +298,14 @@ export function renderQueryResult(data) {
 
 const AGENT_LABELS = {
   MemoryAgent:          { icon: '🗄️', label: 'Qdrant Memory Agent',       color: 'cyan' },
-  ActionExtractor:      { icon: '🎯', label: 'Lyzr Action Extractor',     color: 'amber' },
-  ExecutiveSynthesizer: { icon: '🧠', label: 'Lyzr Executive Synthesizer', color: 'indigo' },
-  TaskDispatcher:       { icon: '📬', label: 'Lyzr Task Dispatcher',       color: 'emerald' },
-  CalendarScheduler:    { icon: '📅', label: 'Lyzr Calendar Scheduler',    color: 'violet' }
+  QdrantRetrieval:      { icon: '🔎', label: 'Qdrant Retrieval',           color: 'cyan' },
+  LyzrManager:          { icon: '🤖', label: 'Lyzr Manager Reasoning',     color: 'indigo' },
+  ActionExtractor:      { icon: '🎯', label: 'Action Extraction',          color: 'amber' },
+  ExecutiveSynthesizer: { icon: '🧠', label: 'Executive Synthesis',        color: 'indigo' },
+  TaskDispatcher:       { icon: '📬', label: 'Deterministic Drafts',        color: 'emerald' },
+  CalendarScheduler:    { icon: '📅', label: 'Calendar Intent',             color: 'violet' }
 };
-const AGENT_ORDER = ['MemoryAgent', 'ActionExtractor', 'ExecutiveSynthesizer', 'TaskDispatcher', 'CalendarScheduler'];
+const AGENT_ORDER = ['MemoryAgent', 'QdrantRetrieval', 'LyzrManager', 'ActionExtractor', 'ExecutiveSynthesizer', 'TaskDispatcher', 'CalendarScheduler'];
 
 export function showPipelinePanel() {
   const panel = document.getElementById('pipeline-panel');

@@ -49,6 +49,7 @@ class Settings(BaseModel):
         default=None,
         description="Lyzr Studio Agent ID"
     )
+    lyzr_manager_agent_id: str | None = Field(default=None, description="Lyzr Manager Agent ID")
     lyzr_inference_url: str = Field(
         default="https://agent-prod.studio.lyzr.ai/v3/inference/chat/",
         description="Lyzr Studio inference endpoint"
@@ -59,6 +60,7 @@ class Settings(BaseModel):
         default=None,
         description="Omi device webhook authentication key"
     )
+    omi_webhook_secret: str | None = Field(default=None, description="Secret supported by the configured Omi webhook")
 
     # API Security (Optional Token / Bearer Protection)
     api_secret_key: str | None = Field(
@@ -77,10 +79,14 @@ class Settings(BaseModel):
             self.lyzr_api_key = os.environ["LYZR_API_KEY"]
         if "lyzr_agent_id" not in data and "LYZR_AGENT_ID" in os.environ:
             self.lyzr_agent_id = os.environ["LYZR_AGENT_ID"]
+        if "lyzr_manager_agent_id" not in data and "LYZR_MANAGER_AGENT_ID" in os.environ:
+            self.lyzr_manager_agent_id = os.environ["LYZR_MANAGER_AGENT_ID"]
         if "api_secret_key" not in data and "API_SECRET_KEY" in os.environ:
             self.api_secret_key = os.environ["API_SECRET_KEY"]
         if "omi_api_key" not in data and "OMI_API_KEY" in os.environ:
             self.omi_api_key = os.environ["OMI_API_KEY"]
+        if "omi_webhook_secret" not in data and "OMI_WEBHOOK_SECRET" in os.environ:
+            self.omi_webhook_secret = os.environ["OMI_WEBHOOK_SECRET"]
         if "port" not in data and "PORT" in os.environ:
             try:
                 self.port = int(os.environ["PORT"])

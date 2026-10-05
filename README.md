@@ -1,12 +1,12 @@
 # 🎙️ OmiMind: Ambient Voice Memory & Autonomous Chief of Staff
 
 [![CI Tests & Quality Gate](https://github.com/masood-mashu/omimind-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/masood-mashu/omimind-agent/actions)
-[![Test Coverage](https://img.shields.io/badge/Coverage-87.77%25-brightgreen.svg)](https://github.com/masood-mashu/omimind-agent/actions)
+[![Tests](https://img.shields.io/badge/tests-CI%20verified-blue.svg)](https://github.com/masood-mashu/omimind-agent/actions)
 [![Python Versions](https://img.shields.io/badge/Python-3.10%20%7C%203.11-blue.svg)](https://www.python.org/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Omi Powered](https://img.shields.io/badge/Omi-Ambient%20Voice%20Capture-purple.svg)](https://omi.me)
 [![Qdrant Cloud](https://img.shields.io/badge/Qdrant-Cloud%20Vector%20Memory-red.svg)](https://qdrant.tech)
-[![Lyzr Multi-Agent](https://img.shields.io/badge/Lyzr-5--Agent%20Swarm-emerald.svg)](https://lyzr.ai)
+[![Lyzr](https://img.shields.io/badge/Lyzr-Manager%20Reasoning-emerald.svg)](https://lyzr.ai)
 [![MCP Server](https://img.shields.io/badge/MCP-Protocol%20Ready-blueviolet.svg)](https://modelcontextprotocol.io)
 [![Hackathon: Stop Prompting](https://img.shields.io/badge/HiDevs%20Hackathon-Track%201%3A%20Meeting%20Intelligence-orange.svg)](https://app.hidevs.xyz/hackathons/stop-prompting-solo-agents-hackathon-2026)
 [![Live Demo](https://img.shields.io/badge/Live%20Demo-omimind--agent.vercel.app-brightgreen.svg)](https://omimind-agent.vercel.app/)
@@ -35,9 +35,9 @@ Modern knowledge workers and engineering teams spend hours every day in meetings
 
 **OmiMind** reimagines meeting and lecture intelligence as an **ambient, autonomous Chief of Staff**:
 1. **Zero-Intrusion Ambient Ingestion:** Ingests live conversations directly through the **Omi Wearable** (via official webhook contracts) or browser microphone with real-time audio waveform visualizers.
-2. **Persistent Vector Memory:** Vectorizes every spoken utterance into **Qdrant Cloud** as 128-dimensional dense vectors with speaker diarisation and sub-second hybrid retrieval (cosine + lexical stem overlap).
-3. **Autonomous 5-Agent Lyzr Swarm:** Coordinates specialized agents streaming real-time Server-Sent Events (SSE) to autonomously synthesize executive dossiers, extract prioritized action commitments, generate Jira engineering tickets, and draft RFC 5545 calendar invitations with 1-click Google Meet launch links.
-4. **Grounded Q&A with Lyzr Studio Cloud:** The `/ask` endpoint recalls relevant transcript context from Qdrant and streams it through Lyzr Studio Cloud inference (`agent-prod.studio.lyzr.ai`) for hallucination-free answers with speaker citations.
+2. **Persistent Vector Memory:** Vectorizes every spoken utterance with FastEmbed `BAAI/bge-small-en-v1.5` into **Qdrant** as 384-dimensional vectors with speaker, user, and timestamp attribution.
+3. **Lyzr Manager Reasoning:** Retrieves relevant Qdrant evidence and sends it to a configured Lyzr Manager, while deterministic components validate and prepare user-controlled executive, task, email, and calendar outputs.
+4. **Grounded Q&A with Lyzr Studio Cloud:** The `/ask` endpoint recalls user-scoped transcript context from Qdrant and sends it through Lyzr Studio Cloud inference for grounded answers with speaker citations when configured.
 5. **Tool-Use via Model Context Protocol (MCP):** Connects external AI environments (Claude Desktop, Cursor, Antigravity, ChatGPT) directly into ambient vector memory via standard JSON-RPC 2.0 stdio.
 
 Built for **HiDevs × Lyzr × Qdrant × Omi Hackathon 2026 — Track 1: Meeting & Lecture Intelligence**.
@@ -66,17 +66,17 @@ flowchart TD
     Omi -->|Diarised Speaker Segments| FastAPIServer["FastAPI v2.0 Ingestion Engine<br/>(backend/main.py)"]
 
     subgraph QDRANT ["⚡ Qdrant Cloud Vector Memory Layer"]
-        FastAPIServer -->|128-Dim Normalized Vectors| Qdrant[("Qdrant Cloud: omi_ambient_memory<br/>168+ Persistent Vectors")]
+        FastAPIServer -->|384-Dim FastEmbed Vectors| Qdrant[("Configured Qdrant: omi_ambient_memory<br/>Persistent Vector Memory")]
         Qdrant <-->|Hybrid 60% Cosine + 40% Lexical| MemAgent["Memory Agent (agents/memory_agent.py)"]
     end
 
-    subgraph LYZR ["🐝 Lyzr 5-Agent Swarm (Real-Time SSE Stream)"]
+    subgraph LYZR ["🤖 Lyzr Manager + Specialists (Real-Time SSE Stream)"]
         FastAPIServer -->|SSE Stream /api/process-stream| Stream["Live Agent Monitor Dashboard"]
         Stream --> A1["🗄️ Agent 1: Qdrant Memory Indexer"]
-        Stream --> A2["🎯 Agent 2: Lyzr Action Extractor"]
-        Stream --> A3["🧠 Agent 3: Lyzr Executive Synthesizer"]
-        Stream --> A4["📬 Agent 4: Lyzr Task Dispatcher"]
-        Stream --> A5["📅 Agent 5: Lyzr Calendar Scheduler"]
+        Stream --> A2["🔎 Qdrant Retrieval"]
+        Stream --> A3["🤖 Lyzr Manager Reasoning"]
+        Stream --> A4["🧩 Deterministic Validators"]
+        Stream --> A5["📦 User-controlled Drafts"]
     end
 
     subgraph OUTPUTS ["📦 Autonomous Deliverables & Integrations"]
@@ -104,13 +104,13 @@ flowchart TD
 
 ---
 
-## 🐝 The Lyzr 5-Agent Swarm
+## 🤖 The Lyzr Manager Pipeline
 
 The core intelligence layer consists of five specialized agents orchestrated as a cohesive swarm:
 
 | Agent | Module | Role & Autonomous Capabilities | Output |
 |---|---|---|---|
-| **Agent 1: Memory Indexer** | [`agents/memory_agent.py`](agents/memory_agent.py) | Vectorizes utterances with 128-dim dense embeddings and commits them to Qdrant Cloud with speaker and time attribution. | Real-time indexed vector count |
+| **Memory + Retrieval** | [`agents/memory_agent.py`](agents/memory_agent.py) | Vectorizes utterances with 384-dim FastEmbed embeddings and retrieves user-scoped evidence from Qdrant. | Actual indexed and retrieved counts |
 | **Agent 2: Action Extractor** | [`agents/action_extractor.py`](agents/action_extractor.py) | Parses verbal commitments (*"I will...", "Let's make sure..."*), assignees, deadlines, and urgency (`Critical P0`, `High`, `Medium`). | Kanban task cards & priority tags |
 | **Agent 3: Executive Synthesizer** | [`agents/executive_synth.py`](agents/executive_synth.py) | Distills raw audio transcripts into executive summaries, confirmed strategic decisions, and highlighted engineering risks. | Executive dossier briefing |
 | **Agent 4: Task Dispatcher** | [`agents/task_dispatcher.py`](agents/task_dispatcher.py) | Formats structured follow-up communications and generates Atlassian Jira / GitHub issue schemas. | 1-Click Gmail draft & Jira JSON (`OMI-1`…) |
@@ -127,8 +127,8 @@ The live deployment at **[https://omimind-agent.vercel.app/](https://omimind-age
 
 1. **Q4 AI Strategy & Budget (Executive Review):**
    - Participants: CFO Sarah, CTO David, VP Product Elena, Lead Architect Marcus.
-   - Swarm Results: 8 vectors indexed, 6 action items extracted, 2 binding decisions (Zero-Trust token redaction P0, 128-node reserved cluster), 2 risks, and 2 follow-up sync sessions.
-   - Semantic Recall: *"What did Sarah say about the budget?"* ➔ **99.47% Vector Relevance Match**.
+   - Results: the UI displays the actual vectors, retrieved memories, actions, decisions, risks, and calendar drafts produced by the selected transcript.
+   - Semantic Recall: *"What did Sarah say about the budget?"* ➔ ranked evidence with speaker and timestamp attribution.
 
 2. **P0 Payment Outage Postmortem (SRE & Incident Ops):**
    - Participants: Alex (SRE Lead), Alice (Architect), Chloe (Security), Vikram (CTO), Ravi (CFO).
@@ -140,7 +140,7 @@ The live deployment at **[https://omimind-agent.vercel.app/](https://omimind-age
    - Swarm Results: Synthesizes IO-aware tiling, SRAM memory hierarchy, and Triton PS4 homework deadline.
 
 4. **Live Omi Voice Capture & Custom Voice Input:**
-   - Speak into browser microphone or type raw transcript. Click **Vectorize** to run the live 5-agent swarm on custom voice inputs.
+   - Speak into browser microphone or type raw transcript. Click **Vectorize** to run the connected Qdrant retrieval and Lyzr reasoning pipeline on custom voice inputs.
 
 ---
 
@@ -174,8 +174,8 @@ OmiMind includes a production-ready Model Context Protocol (MCP) server ([`mcp_s
 |---|---|---|---|
 | `GET` | `/health` | Public | Service health + Qdrant Cloud statistics |
 | `GET` | `/api/meetings` | Public | List preset demo meetings |
-| `POST` | `/api/process-stream` | Public | **SSE Stream:** Run 5-agent swarm on preset meeting |
-| `POST` | `/api/custom-voice-stream` | Public | **SSE Stream:** Run 5-agent swarm on custom voice/transcript |
+| `POST` | `/api/process-stream` | Public | **SSE Stream:** Run Track 1 Qdrant → Lyzr pipeline on a preset meeting |
+| `POST` | `/api/custom-voice-stream` | Public | **SSE Stream:** Run Track 1 pipeline on custom voice/transcript |
 | `POST` | `/api/query` | Public | Hybrid semantic vector memory search (`limit: 1–20`) |
 | `POST` | `/ask` | Protected | **Official Guide:** Grounded Q&A via Qdrant memory + Lyzr Studio |
 | `POST` | `/api/omi-webhook` | Protected | Native Omi wearable segment webhook |
@@ -190,7 +190,7 @@ Protected endpoints require `API_SECRET_KEY` supplied via `x-api-key: <key>` or 
 
 ## 🧪 Comprehensive Automated Test Suite
 
-OmiMind enforces rigorous test coverage with **58 automated unit and integration tests** executing against a **Python 3.10 & 3.11 CI matrix** with a mandatory **>= 80% coverage quality gate**:
+OmiMind runs unit and integration tests on a **Python 3.10 & 3.11 CI matrix** with a mandatory **>= 80% coverage quality gate**:
 
 ```bash
 $ pytest --cov=agents --cov=backend tests/ --cov-report=term-missing --cov-fail-under=80 -v
@@ -223,7 +223,7 @@ backend/main.py                  272     34    88%   88-89, 119, 197, 206-207, 3
 backend/mock_data.py               2      0   100%
 ------------------------------------------------------------
 TOTAL                            638     78    88%
-Required test coverage of 80% reached. Total coverage: 87.77%
+Coverage is reported by CI from the current implementation; no fixed percentage is claimed here.
 ============================= 58 passed in 11.59s =============================
 ```
 
@@ -264,8 +264,8 @@ Open **`http://localhost:8000`** in your browser.
 Follow the tested script in [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) for the turnkey recording walkthrough:
 - **0:00–0:30:** Introduce OmiMind, the problem, and Track 1 alignment.
 - **0:30–1:15:** Point out the live app at [omimind-agent.vercel.app](https://omimind-agent.vercel.app/) and the Omi/Qdrant/Lyzr architecture.
-- **1:15–2:45:** Select **Q4 AI Strategy & Budget**, click **Ingest & Run Lyzr Swarm**, observe all 5 agents execute via live SSE, and review the resulting dossier, Kanban cards, calendar sync, and follow-up email.
-- **2:45–3:30:** Test semantic memory search (*"What did Sarah say about the budget?"*) and show the 99%+ similarity match.
+- **1:15–2:45:** Select **Q4 AI Strategy & Budget**, click **Ingest & Run**, observe Qdrant retrieval and Lyzr Manager reasoning via live SSE, and review the resulting dossier and prepared outputs.
+- **2:45–3:30:** Test semantic memory search (*"What did Sarah say about the budget?"*) and show the actual retrieved evidence and score.
 - **3:30–4:30:** Submit a custom voice memo or highlight the MCP server and privacy purge endpoint.
 - **4:30–5:00:** Wrap up and recap the connected loop.
 
@@ -297,23 +297,22 @@ Follow the tested script in [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) for the
 OmiMind integrates directly with Omi's ambient voice pipeline through three dedicated webhook endpoints:
 - `POST /omi/conversation` — triggers after a conversation concludes; ingests full diarised `transcript_segments[]` with speaker attribution directly into persistent vector storage.
 - `POST /omi/realtime` — ingests streaming audio transcripts in real time as the user speaks.
-- `POST /api/omi-webhook` — handles native Omi wearable segment payloads with instant sub-50ms HTTP 200 acknowledgements to prevent mobile client timeouts.
+- `POST /api/omi-webhook` — handles native Omi wearable segment payloads with an accepted-job HTTP response; processing is deferred so the webhook remains responsive.
 Tested and verified with automated test suites, simulated audio feeds, and browser microphone capture.
 
 ### Qdrant Usage
-Every spoken utterance is converted into a 128-dimensional L2-normalized dense vector and indexed persistently in the `omi_ambient_memory` collection on Qdrant Cloud. Semantic retrieval uses a custom hybrid scoring engine (60% cosine vector similarity + 40% lexical stem overlap), enabling dynamic relevance scoring with speaker and timestamp attribution (e.g. 99.47% similarity score for budget queries). The `/api/forget` endpoint supports GDPR-compliant memory deletion, and vectors persist across server restarts and cold starts.
+Every spoken utterance is converted into a 384-dimensional `BAAI/bge-small-en-v1.5` vector and indexed in the `omi_ambient_memory` collection on configured Qdrant storage. Retrieval returns speaker, user, timestamp, and evidence metadata. Production does not silently fall back to ephemeral memory; `/api/forget` and `DELETE /api/memory` support explicit deletion.
 
 ### Lyzr Usage
-OmiMind deploys a 5-agent swarm built on the Lyzr multi-agent architecture, streaming live execution progress via Server-Sent Events (SSE):
-1. **MemoryAgent:** Manages vector storage and semantic recall with Qdrant Cloud.
-2. **ActionExtractor:** Autonomously parses verbal commitments, assignees, deadlines, and urgency (`P0` / `High`).
-3. **ExecutiveSynthesizer:** Distills transcripts into executive summaries, binding decisions, and technical risks.
-4. **TaskDispatcher:** Formats follow-up emails and generates Atlassian Jira / GitHub tickets (`OMI-1` through `OMI-6`).
-5. **CalendarScheduler:** Detects meeting intent and creates RFC 5545 `.ics` files and Google Meet URLs.
-The `/ask` endpoint additionally connects to Lyzr Studio Cloud (`LYZR_AGENT_ID`) for grounded Q&A over retrieved context.
+OmiMind exposes an observable Track 1 pipeline over Server-Sent Events (SSE):
+1. **MemoryAgent:** Stores transcript evidence in Qdrant.
+2. **QdrantRetrieval:** Retrieves relevant, user-scoped meeting context.
+3. **LyzrManager:** Reasons over the retrieved context through Lyzr Studio when configured.
+4. **Deterministic validators:** Extract and normalize actions, decisions, risks, and scheduling intent.
+5. **Draft outputs:** Prepare email, Jira, and calendar payloads for user-controlled execution.
 
 ### Project Description
-OmiMind is an ambient voice memory and autonomous Chief of Staff for the Omi AI Wearable, powered by Qdrant Cloud vector memory and a Lyzr 5-agent swarm. By continuously listening to ambient meetings, lectures, and voice memos, OmiMind indexes every utterance into Qdrant for sub-second semantic recall and coordinates a 5-agent pipeline streaming live over SSE. In seconds, OmiMind turns spoken conversations into structured executive summaries, Kanban action items, Jira engineering tickets, and calendar invitations with Google Meet links — completely hands-free. Live at https://omimind-agent.vercel.app/.
+OmiMind is a Track 1 meeting and lecture intelligence system for Omi voice input, persistent Qdrant memory, and Lyzr Manager reasoning. It retrieves grounded transcript evidence, produces structured meeting intelligence, and prepares user-controlled action, email, Jira, and calendar outputs while streaming the actual stages over SSE. Live at https://omimind-agent.vercel.app/.
 
 ---
 
