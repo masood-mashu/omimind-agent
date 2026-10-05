@@ -1,0 +1,7 @@
+fastembed_cache/
+.pytest_cache/
+tests/
+scratch/
+.coverage
+htmlcov/
+*.log
