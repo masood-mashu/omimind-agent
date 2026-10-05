@@ -104,20 +104,20 @@ flowchart TD
 
 ---
 
-## 🤖 The Lyzr Manager Pipeline
+## 🤖 The Track 1 Multi-Agent Pipeline
 
-The core intelligence layer consists of five specialized agents orchestrated as a cohesive swarm:
+The core intelligence layer executes five truthful, observable stages streamed live over Server-Sent Events (SSE):
 
-| Agent | Module | Role & Autonomous Capabilities | Output |
+| Stage | Module | Role & Autonomous Capabilities | Output |
 |---|---|---|---|
-| **Memory + Retrieval** | [`agents/memory_agent.py`](agents/memory_agent.py) | Vectorizes utterances with 384-dim FastEmbed embeddings and retrieves user-scoped evidence from Qdrant. | Actual indexed and retrieved counts |
-| **Agent 2: Action Extractor** | [`agents/action_extractor.py`](agents/action_extractor.py) | Parses verbal commitments (*"I will...", "Let's make sure..."*), assignees, deadlines, and urgency (`Critical P0`, `High`, `Medium`). | Kanban task cards & priority tags |
-| **Agent 3: Executive Synthesizer** | [`agents/executive_synth.py`](agents/executive_synth.py) | Distills raw audio transcripts into executive summaries, confirmed strategic decisions, and highlighted engineering risks. | Executive dossier briefing |
-| **Agent 4: Task Dispatcher** | [`agents/task_dispatcher.py`](agents/task_dispatcher.py) | Formats structured follow-up communications and generates Atlassian Jira / GitHub issue schemas. | 1-Click Gmail draft & Jira JSON (`OMI-1`…) |
-| **Agent 5: Calendar Scheduler** | [`agents/calendar_scheduler.py`](agents/calendar_scheduler.py) | Detects scheduling intent (*"sync tomorrow at 2 PM"*) and builds RFC 5545 `.ics` files and prefilled Google Meet launch URLs. | iCal file download & Google Meet link |
+| **Stage 1: Qdrant Memory Indexing** | [`agents/memory_agent.py`](agents/memory_agent.py) | Vectorizes spoken utterances with FastEmbed `BAAI/bge-small-en-v1.5` dense embeddings into Qdrant Cloud. | 384-dim vectors indexed |
+| **Stage 2: Qdrant Retrieval** | [`agents/memory_agent.py`](agents/memory_agent.py) | Semantically retrieves relevant conversational evidence scoped by user ID (`uid`) via Cosine distance. | Grounded transcript context |
+| **Stage 3: Lyzr Manager Reasoning** | [`agents/lyzr_client.py`](agents/lyzr_client.py) | Lyzr Studio Cloud manager reasons over retrieved transcript context to generate structured synthesis. | Grounded meeting intelligence |
+| **Stage 4: Action/Decision Validation** | [`agents/action_extractor.py`](agents/action_extractor.py)<br/>[`agents/executive_synth.py`](agents/executive_synth.py) | Validates verbal commitments, assignees, deadlines, strategic decisions, and highlighted engineering risks. | Kanban task cards & priority tags |
+| **Stage 5: User-controlled Draft Outputs** | [`agents/task_dispatcher.py`](agents/task_dispatcher.py)<br/>[`agents/calendar_scheduler.py`](agents/calendar_scheduler.py) | Drafts follow-up emails, Atlassian Jira issue schemas, RFC 5545 `.ics` files, and prefilled Google Meet URLs. | 1-Click drafts & calendar links |
 
 ### Real-Time SSE Observability
-In accordance with the hackathon scoring guidelines (*"Show the agents working. Log each step... Observable workflows are part of the score"*), the swarm emits live Server-Sent Events (`/api/process-stream` and `/api/custom-voice-stream`). The browser dashboard visualizes each agent's active execution and status checkmarks in real time.
+In accordance with the hackathon scoring guidelines (*"Show the agents working. Log each step... Observable workflows are part of the score"*), the pipeline emits live Server-Sent Events (`/api/process-stream` and `/api/custom-voice-stream`). The browser dashboard visualizes each stage's active execution, live status, and numeric vector scores in real time.
 
 ---
 
@@ -198,33 +198,35 @@ $ pytest --cov=agents --cov=backend tests/ --cov-report=term-missing --cov-fail-
 platform win32 -- Python 3.11.9, pytest-9.1.1, pluggy-1.6.0
 rootdir: D:\hackathon\omimind-agent
 configfile: pyproject.toml
-collected 58 items
+collected 69 items
 
-tests/test_action_extractor.py (7 tests)      PASSED [ 12%]
-tests/test_api_endpoints.py (19 tests)        PASSED [ 44%]
-tests/test_calendar_scheduler.py (5 tests)    PASSED [ 53%]
-tests/test_executive_synth.py (3 tests)       PASSED [ 58%]
-tests/test_mcp_server.py (4 tests)            PASSED [ 65%]
-tests/test_memory_agent.py (11 tests)         PASSED [ 84%]
-tests/test_omimind.py (6 tests)               PASSED [ 94%]
+tests/test_action_extractor.py (7 tests)      PASSED [ 10%]
+tests/test_api_endpoints.py (24 tests)        PASSED [ 44%]
+tests/test_calendar_scheduler.py (6 tests)    PASSED [ 53%]
+tests/test_executive_synth.py (3 tests)       PASSED [ 57%]
+tests/test_lyzr_client.py (2 tests)           PASSED [ 60%]
+tests/test_mcp_server.py (4 tests)            PASSED [ 66%]
+tests/test_memory_agent.py (14 tests)         PASSED [ 86%]
+tests/test_omimind.py (6 tests)               PASSED [ 95%]
 tests/test_task_dispatcher.py (3 tests)       PASSED [100%]
 
 =============================== tests coverage ================================
 Name                           Stmts   Miss  Cover   Missing
 ------------------------------------------------------------
 agents/action_extractor.py        40      0   100%
-agents/calendar_scheduler.py      41      2    95%   51-52
+agents/calendar_scheduler.py      41      2    95%   52-53
 agents/executive_synth.py         30      0   100%
-agents/memory_agent.py           163     38    77%   105-106, 114-124, 153-155, 182-190, 296-301
-agents/orchestrator.py            31      0   100%
+agents/lyzr_client.py             32      3    91%   72, 74-75
+agents/memory_agent.py           258     68    74%   117-118, 126-136, 140, 175-183...
+agents/orchestrator.py            35      0   100%
 agents/task_dispatcher.py         15      0   100%
-backend/config.py                 44      4    91%   15-16, 87-88
-backend/main.py                  272     34    88%   88-89, 119, 197, 206-207, 357, 373, 456, 522
+backend/config.py                 50      6    88%   15-16, 83, 89, 93-94
+backend/main.py                  315     44    86%   88-89, 119, 141, 203, 212-213...
 backend/mock_data.py               2      0   100%
 ------------------------------------------------------------
-TOTAL                            638     78    88%
-Coverage is reported by CI from the current implementation; no fixed percentage is claimed here.
-============================= 58 passed in 11.59s =============================
+TOTAL                            818    123    85%
+Required test coverage of 80% reached. Total coverage: 84.96%
+============================= 69 passed in 60.38s =============================
 ```
 
 ---
