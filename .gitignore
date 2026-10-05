@@ -12,3 +12,5 @@ qdrant_storage/
 .DS_Store
 *.log
 *.pdf
+
+.vercel

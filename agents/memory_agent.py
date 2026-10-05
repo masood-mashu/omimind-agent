@@ -16,6 +16,7 @@ from qdrant_client.models import (
     FieldCondition,
     Filter,
     MatchValue,
+    PayloadSchemaType,
     PointStruct,
     VectorParams,
 )
@@ -315,11 +316,27 @@ class QdrantMemoryAgent:
         try:
             collections = self.client.get_collections().collections
             exists = any(c.name == COLLECTION_NAME for c in collections)
+            if exists:
+                info = self.client.get_collection(COLLECTION_NAME)
+                current_dim = getattr(info.config.params.vectors, "size", None)
+                if current_dim and current_dim != VECTOR_DIM:
+                    self.client.delete_collection(COLLECTION_NAME)
+                    exists = False
+
             if not exists:
                 self.client.create_collection(
                     collection_name=COLLECTION_NAME,
                     vectors_config=VectorParams(size=VECTOR_DIM, distance=Distance.COSINE),
                 )
+            for field in ["uid", "session_id", "speaker", "topic"]:
+                try:
+                    self.client.create_payload_index(
+                        collection_name=COLLECTION_NAME,
+                        field_name=field,
+                        field_schema=PayloadSchemaType.KEYWORD,
+                    )
+                except Exception:
+                    pass
         except Exception as exc:
             raise RuntimeError("Unable to initialize the persistent Qdrant collection") from exc
 

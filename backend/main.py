@@ -253,6 +253,7 @@ def health():
         return JSONResponse(status_code=503, content=health_data)
     return health_data
 
+
 @app.get("/api/meetings")
 def get_meetings():
     meetings_list = []
