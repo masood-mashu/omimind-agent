@@ -178,6 +178,7 @@ class CustomVoiceRequest(BaseModel):
 class QueryRequest(BaseModel):
     question: str
     limit: int = Field(default=4, ge=1, le=20)
+    uid: str = "default_user"
 
 class OmiWebhookRequest(BaseModel):
     """Native Omi device webhook payload format."""
@@ -228,17 +229,29 @@ def parse_transcript(transcript: str, default_speaker: str = "User") -> tuple[li
 @app.get("/health")
 def health():
     stats = orchestrator.memory.get_stats()
-    return {
-        "status": "healthy",
+    emb_health = stats.get("embedding_health", {})
+    emb_status = emb_health.get("status", "ready")
+    is_healthy = emb_status == "ready"
+
+    health_data = {
+        "status": "healthy" if is_healthy else "degraded",
         "service": "omimind-agent",
         "version": "2.0.0",
-        "tech_stack": {
-            "voice": "Omi Wearable Webhook / Mic Ingestion",
-            "vector_database": "Qdrant Vector DB",
-            "agent_orchestration": "Lyzr Multi-Agent Swarm"
+        "embedding_provider": stats.get("embedding_provider", "fastembed"),
+        "vector_dimension": stats.get("vector_dimension", 384),
+        "qdrant_persistence_mode": stats.get("persistence_mode", "cloud"),
+        "lyzr_status": {
+            "configured": orchestrator.lyzr.configured,
+            "agent_id_configured": bool(orchestrator.lyzr.agent_id),
+            "provider": "lyzr_studio_cloud" if orchestrator.lyzr.configured else "unconfigured",
         },
-        "qdrant_stats": stats
+        "embedding_health": emb_health,
+        "qdrant_stats": stats,
     }
+
+    if not is_healthy:
+        return JSONResponse(status_code=503, content=health_data)
+    return health_data
 
 @app.get("/api/meetings")
 def get_meetings():
@@ -258,17 +271,48 @@ def get_meetings():
 def process_meeting(req: ProcessRequest):
     if req.meeting_id not in DEMO_MEETINGS:
         raise HTTPException(status_code=404, detail="Meeting not found")
+
+    stats = orchestrator.memory.get_stats()
+    if stats.get("embedding_health", {}).get("status") != "ready":
+        return JSONResponse(
+            status_code=503,
+            content={
+                "success": False,
+                "error": {
+                    "code": "EMBEDDING_SERVICE_DEGRADED",
+                    "message": "Semantic memory or embedding provider is currently degraded or unavailable.",
+                    "status_code": 503,
+                },
+                "detail": "Semantic embedding provider unavailable",
+            },
+        )
+
     meeting = DEMO_MEETINGS[req.meeting_id]
     session_id = str(meeting["id"])
     title = str(meeting["title"])
     transcript_lines: list[dict[str, Any]] = meeting.get("lines", [])  # type: ignore[assignment]
-    dossier = orchestrator.process_session(
-        session_id=session_id,
-        title=title,
-        transcript_lines=transcript_lines
-    )
-    processed_cache[session_id] = dossier
-    return dossier
+    try:
+        dossier = orchestrator.process_session(
+            session_id=session_id,
+            title=title,
+            transcript_lines=transcript_lines,
+        )
+        processed_cache[session_id] = dossier
+        return dossier
+    except Exception as exc:
+        logger.error(f"Process meeting error: {exc}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "success": False,
+                "error": {
+                    "code": "PROCESSING_FAILED",
+                    "message": "Failed to process meeting due to memory backend error.",
+                    "status_code": 503,
+                },
+                "detail": "Processing failed due to memory backend error",
+            },
+        )
 
 # â”€â”€â”€ SSE Streaming Pipeline â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -283,113 +327,171 @@ async def _stream_pipeline(
     def sse(data: dict) -> str:
         return f"data: {json.dumps(data)}\n\n"
 
-    # Agent 1: Memory / Qdrant indexing
-    yield sse({"agent": "MemoryAgent", "status": "running",
-                "message": f"Indexing {len(lines)} utterances into Qdrant vector store..."})
+    try:
+        emb_health = getattr(orchestrator.memory.embedding_model, "check_health", lambda: {"status": "ready"})()
+        if emb_health.get("status") != "ready":
+            yield sse({
+                "type": "error",
+                "stage": 1,
+                "agent": "MemoryAgent",
+                "stage_name": "Qdrant Memory Indexing",
+                "status": "error",
+                "message": "Semantic embedding provider is currently degraded or unavailable.",
+            })
+            return
 
-    indexed_points = []
-    for i, line in enumerate(lines):
-        p_id = orchestrator.memory.index_utterance(
-            session_id=session_id,
-            speaker=line.get("speaker", "Speaker"),
-            text=line.get("text", ""),
-            timestamp=float(i * 15),
-            timestamp_str=line.get("timestamp_str", f"00:{i*15:02d}"),
-            topic=line.get("topic", "general"),
-            urgency=line.get("urgency", "normal"),
+        # Stage 1: Memory / Qdrant indexing
+        yield sse({
+            "stage": 1,
+            "agent": "MemoryAgent",
+            "stage_name": "Qdrant Memory Indexing",
+            "status": "running",
+            "message": f"Indexing {len(lines)} utterances into persistent Qdrant vector store...",
+        })
+
+        indexed_points = []
+        for i, line in enumerate(lines):
+            p_id = orchestrator.memory.index_utterance(
+                session_id=session_id,
+                speaker=line.get("speaker", "Speaker"),
+                text=line.get("text", ""),
+                timestamp=float(i * 15),
+                timestamp_str=line.get("timestamp_str", f"00:{i*15:02d}"),
+                topic=line.get("topic", "general"),
+                urgency=line.get("urgency", "normal"),
+                uid=uid,
+            )
+            indexed_points.append(p_id)
+
+        yield sse({
+            "stage": 1,
+            "agent": "MemoryAgent",
+            "stage_name": "Qdrant Memory Indexing",
+            "status": "done",
+            "message": f"{len(indexed_points)} vectors stored in omi_ambient_memory collection.",
+            "count": len(indexed_points),
+        })
+
+        # Stage 2: Qdrant Retrieval
+        yield sse({
+            "stage": 2,
+            "agent": "QdrantRetrieval",
+            "stage_name": "Qdrant Retrieval",
+            "status": "running",
+            "message": "Retrieving relevant meeting context from persistent Qdrant memory...",
+        })
+        retrieved_context = orchestrator.memory.search_memory(
+            query=f"Meeting intelligence for {title}",
+            limit=min(8, max(1, len(lines))),
             uid=uid,
         )
-        indexed_points.append(p_id)
+        yield sse({
+            "stage": 2,
+            "agent": "QdrantRetrieval",
+            "stage_name": "Qdrant Retrieval",
+            "status": "done",
+            "message": f"{len(retrieved_context)} relevant transcript memories retrieved.",
+            "count": len(retrieved_context),
+        })
 
-    yield sse({"agent": "MemoryAgent", "status": "done",
-                "message": f"{len(indexed_points)} vectors stored in omi_ambient_memory collection.",
-                "count": len(indexed_points)})
-
-    # Mandatory Track 1 bridge: retrieve from Qdrant, then call Lyzr.
-    yield sse({"agent": "QdrantRetrieval", "status": "running",
-                "message": "Retrieving relevant meeting context from persistent Qdrant memory..."})
-    retrieved_context = orchestrator.memory.search_memory(
-        query=f"Meeting intelligence for {title}",
-        limit=min(8, max(1, len(lines))),
-    )
-    yield sse({"agent": "QdrantRetrieval", "status": "done",
-                "message": f"{len(retrieved_context)} relevant transcript memories retrieved.",
-                "count": len(retrieved_context)})
-
-    yield sse({"agent": "LyzrManager", "status": "running",
-                "message": "Sending grounded context to the configured Lyzr Manager..."})
-    lyzr_result = orchestrator.lyzr.reason(
-        uid=session_id,
-        question="Produce grounded meeting intelligence from the supplied transcript context.",
-        context=retrieved_context,
-    )
-    yield sse({"agent": "LyzrManager", "status": "done",
-                "message": f"Reasoning provider: {lyzr_result.provider}.",
-                "provider": lyzr_result.provider,
-                "error": lyzr_result.error})
-
-    # Agent 2: Action extraction
-    yield sse({"agent": "ActionExtractor", "status": "running",
-                "message": "Scanning transcript for verbal commitments, deadlines, and urgency signals..."})
-
-    action_items = orchestrator.extractor.extract_from_transcript(lines)
-
-    yield sse({"agent": "ActionExtractor", "status": "done",
-                "message": f"{len(action_items)} action item{'s' if len(action_items) != 1 else ''} extracted with assignees and due dates.",
-                "count": len(action_items)})
-
-    # Agent 3: Executive synthesis
-    yield sse({"agent": "ExecutiveSynthesizer", "status": "running",
-                "message": "Building dynamic executive briefing from decisions and risks..."})
-
-    summary = orchestrator.synthesizer.synthesize_meeting(title, lines)
-    decisions_found = len([d for d in summary.get("key_decisions", []) if "Consensus" not in d])
-    risks_found = len([r for r in summary.get("risks_and_blockers", []) if "No critical" not in r])
-
-    yield sse({"agent": "ExecutiveSynthesizer", "status": "done",
-                "message": f"{decisions_found} decision{'s' if decisions_found != 1 else ''} confirmed, {risks_found} risk{'s' if risks_found != 1 else ''} flagged.",
-                "count": decisions_found})
-
-    # Agent 4: Task dispatch
-    yield sse({"agent": "TaskDispatcher", "status": "running",
-                "message": "Drafting executive follow-up email and generating Jira tickets..."})
-
-    email_draft = orchestrator.dispatcher.generate_followup_email(summary, action_items)
-    jira_tickets = orchestrator.dispatcher.generate_jira_tickets(action_items)
-
-    yield sse({"agent": "TaskDispatcher", "status": "done",
-                "message": f"Email drafted for {len(summary.get('participants', []))} recipients. {len(jira_tickets)} Jira ticket{'s' if len(jira_tickets) != 1 else ''} created.",
-                "count": len(jira_tickets)})
-
-    # Agent 5: Calendar Scheduling
-    yield sse({"agent": "CalendarScheduler", "status": "running",
-                "message": "Extracting meeting commitments and generating calendar links..."})
-
-    calendar_events = orchestrator.scheduler.extract_calendar_events(lines)
-
-    yield sse({"agent": "CalendarScheduler", "status": "done",
-                "message": f"{len(calendar_events)} calendar event{'s' if len(calendar_events) != 1 else ''} detected with Google Meet/iCal links.",
-                "count": len(calendar_events)})
-
-    # Final: complete dossier
-    dossier = {
-        "session_id": session_id,
-        "title": title,
-        "indexed_vectors_count": len(indexed_points),
-        "summary": summary,
-        "action_items": action_items,
-        "email_draft": email_draft,
-        "jira_tickets": jira_tickets,
-        "calendar_events": calendar_events
-        ,"reasoning": {
+        # Stage 3: Lyzr Manager Reasoning
+        yield sse({
+            "stage": 3,
+            "agent": "LyzrManager",
+            "stage_name": "Lyzr Manager Reasoning",
+            "status": "running",
+            "message": "Sending grounded context to the configured Lyzr Manager...",
+        })
+        lyzr_result = orchestrator.lyzr.reason(
+            uid=session_id,
+            question="Produce grounded meeting intelligence from the supplied transcript context.",
+            context=retrieved_context,
+        )
+        yield sse({
+            "stage": 3,
+            "agent": "LyzrManager",
+            "stage_name": "Lyzr Manager Reasoning",
+            "status": "done",
+            "message": f"Reasoning provider: {lyzr_result.provider}.",
             "provider": lyzr_result.provider,
-            "agent_id": lyzr_result.agent_id,
-            "response": lyzr_result.text,
             "error": lyzr_result.error,
+        })
+
+        # Stage 4: Action/Decision Validation
+        yield sse({
+            "stage": 4,
+            "agent": "ActionExtractor",
+            "stage_name": "Action/Decision Validation",
+            "status": "running",
+            "message": "Validating verbal commitments, deadlines, and urgency signals...",
+        })
+
+        action_items = orchestrator.extractor.extract_from_transcript(lines)
+        summary = orchestrator.synthesizer.synthesize_meeting(title, lines)
+        decisions_found = len([d for d in summary.get("key_decisions", []) if "Consensus" not in d])
+        risks_found = len([r for r in summary.get("risks_and_blockers", []) if "No critical" not in r])
+
+        yield sse({
+            "stage": 4,
+            "agent": "ActionExtractor",
+            "stage_name": "Action/Decision Validation",
+            "status": "done",
+            "message": f"{len(action_items)} action item{'s' if len(action_items) != 1 else ''} validated, {decisions_found} decision{'s' if decisions_found != 1 else ''} confirmed, {risks_found} risk{'s' if risks_found != 1 else ''} flagged.",
+            "count": len(action_items),
+        })
+
+        # Stage 5: User-controlled Draft Outputs
+        yield sse({
+            "stage": 5,
+            "agent": "TaskDispatcher",
+            "stage_name": "User-controlled Draft Outputs",
+            "status": "running",
+            "message": "Preparing draft outputs (follow-up email, Jira tickets, calendar invites)...",
+        })
+
+        email_draft = orchestrator.dispatcher.generate_followup_email(summary, action_items)
+        jira_tickets = orchestrator.dispatcher.generate_jira_tickets(action_items)
+        calendar_events = orchestrator.scheduler.extract_calendar_events(lines)
+
+        yield sse({
+            "stage": 5,
+            "agent": "TaskDispatcher",
+            "stage_name": "User-controlled Draft Outputs",
+            "status": "done",
+            "message": f"Drafts prepared: Email, {len(jira_tickets)} Jira ticket{'s' if len(jira_tickets) != 1 else ''}, {len(calendar_events)} calendar event{'s' if len(calendar_events) != 1 else ''}.",
+            "count": len(jira_tickets),
+        })
+
+        # Final: complete dossier
+        dossier = {
+            "session_id": session_id,
+            "title": title,
+            "indexed_vectors_count": len(indexed_points),
+            "summary": summary,
+            "action_items": action_items,
+            "email_draft": email_draft,
+            "jira_tickets": jira_tickets,
+            "calendar_events": calendar_events,
+            "reasoning": {
+                "provider": lyzr_result.provider,
+                "agent_id": lyzr_result.agent_id,
+                "response": lyzr_result.text,
+                "error": lyzr_result.error,
+            },
         }
-    }
-    processed_cache[session_id] = dossier
-    yield sse({"type": "complete", "dossier": dossier})
+        processed_cache[session_id] = dossier
+        yield sse({"type": "complete", "dossier": dossier})
+
+    except Exception as exc:
+        logger.error(f"Pipeline execution failed: {exc}")
+        yield sse({
+            "type": "error",
+            "agent": "PipelineCoordinator",
+            "status": "error",
+            "message": "Pipeline processing failed during execution.",
+            "detail": "Memory or processing service encountered an error.",
+        })
+
 
 @app.post("/api/process-stream")
 async def process_meeting_stream(req: ProcessRequest):
@@ -498,7 +600,38 @@ def seed_demo_data():
 def query_memory(req: QueryRequest):
     if not req.question.strip():
         raise HTTPException(status_code=400, detail="Question cannot be empty")
-    return orchestrator.query_semantic_memory(query=req.question, limit=req.limit)
+
+    stats = orchestrator.memory.get_stats()
+    if stats.get("embedding_health", {}).get("status") != "ready":
+        return JSONResponse(
+            status_code=503,
+            content={
+                "success": False,
+                "error": {
+                    "code": "EMBEDDING_SERVICE_DEGRADED",
+                    "message": "Semantic memory search is temporarily unavailable.",
+                    "status_code": 503,
+                },
+                "detail": "Semantic embedding provider unavailable",
+            },
+        )
+
+    try:
+        return orchestrator.query_semantic_memory(query=req.question, limit=req.limit, uid=req.uid)
+    except Exception as exc:
+        logger.error(f"Query memory error: {exc}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "success": False,
+                "error": {
+                    "code": "RETRIEVAL_FAILED",
+                    "message": "Failed to retrieve memories from vector database.",
+                    "status_code": 503,
+                },
+                "detail": "Vector retrieval failed",
+            },
+        )
 
 # ─── Official Hackathon Guide Endpoints (Lyzr × Qdrant × Omi) ────────────────
 
@@ -601,7 +734,38 @@ def official_ask_endpoint(body: dict[str, Any] = Body(...)):
     if not 1 <= limit <= 20:
         raise HTTPException(status_code=422, detail="k must be an integer between 1 and 20")
 
-    recall_res = orchestrator.query_semantic_memory(query=question, limit=limit, uid=uid)
+    stats = orchestrator.memory.get_stats()
+    if stats.get("embedding_health", {}).get("status") != "ready":
+        return JSONResponse(
+            status_code=503,
+            content={
+                "success": False,
+                "error": {
+                    "code": "EMBEDDING_SERVICE_DEGRADED",
+                    "message": "Semantic memory search is temporarily unavailable.",
+                    "status_code": 503,
+                },
+                "detail": "Semantic embedding provider unavailable",
+            },
+        )
+
+    try:
+        recall_res = orchestrator.query_semantic_memory(query=question, limit=limit, uid=uid)
+    except Exception as exc:
+        logger.error(f"Ask query error: {exc}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "success": False,
+                "error": {
+                    "code": "RETRIEVAL_FAILED",
+                    "message": "Failed to retrieve memories from vector database.",
+                    "status_code": 503,
+                },
+                "detail": "Vector retrieval failed",
+            },
+        )
+
     matches = recall_res.get("matches", [])
     context = [f"[{m.get('speaker', 'Speaker')}]: {m.get('text', '')}" for m in matches]
 

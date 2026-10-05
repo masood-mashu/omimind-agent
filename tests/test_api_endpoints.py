@@ -199,3 +199,85 @@ class TestApiEndpoints:
         assert cfg.app_name == "Test OmiMind"
         assert cfg.port == 9000
         assert cfg.collection_name == "omi_ambient_memory"
+
+    def test_health_observability_and_lyzr_status(self, client):
+        resp = client.get("/health")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "embedding_provider" in data
+        assert "vector_dimension" in data
+        assert data["vector_dimension"] == 384
+        assert "qdrant_persistence_mode" in data
+        assert "lyzr_status" in data
+        assert "configured" in data["lyzr_status"]
+        assert "agent_id_configured" in data["lyzr_status"]
+        # Confirm credentials are NOT exposed
+        assert "api_key" not in data["lyzr_status"]
+        assert "LYZR_API_KEY" not in json.dumps(data)
+
+    def test_health_degraded_returns_503(self, client, monkeypatch):
+        from backend.main import orchestrator
+        monkeypatch.setattr(
+            orchestrator.memory,
+            "get_stats",
+            lambda: {
+                "collection": "omi_ambient_memory",
+                "points_count": 0,
+                "vector_dimension": 384,
+                "embedding_provider": "fastembed",
+                "embedding_health": {"status": "degraded", "error": "Model initialization failed"},
+                "persistence_mode": "cloud"
+            }
+        )
+        resp = client.get("/health")
+        assert resp.status_code == 503
+        data = resp.json()
+        assert data["status"] == "degraded"
+        assert data["embedding_health"]["status"] == "degraded"
+
+    def test_query_and_ask_return_503_when_degraded(self, client, monkeypatch):
+        from backend.main import orchestrator
+        monkeypatch.setattr(
+            orchestrator.memory,
+            "get_stats",
+            lambda: {
+                "collection": "omi_ambient_memory",
+                "points_count": 0,
+                "vector_dimension": 384,
+                "embedding_provider": "fastembed",
+                "embedding_health": {"status": "degraded", "error": "Model initialization failed"},
+                "persistence_mode": "cloud"
+            }
+        )
+        # /api/process
+        resp_process = client.post("/api/process", json={"meeting_id": "cs_lecture"})
+        assert resp_process.status_code == 503
+        assert resp_process.json()["error"]["code"] == "EMBEDDING_SERVICE_DEGRADED"
+
+        # /api/query
+        resp_query = client.post("/api/query", json={"question": "What is FlashAttention?"})
+        assert resp_query.status_code == 503
+        assert resp_query.json()["error"]["code"] == "EMBEDDING_SERVICE_DEGRADED"
+
+        # /ask
+        resp_ask = client.post("/ask", json={"question": "What is FlashAttention?"})
+        assert resp_ask.status_code == 503
+        assert resp_ask.json()["error"]["code"] == "EMBEDDING_SERVICE_DEGRADED"
+
+    def test_process_stream_sse_error_event(self, client, monkeypatch):
+        from backend.main import orchestrator
+        monkeypatch.setattr(
+            orchestrator.memory,
+            "index_utterance",
+            lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError("Qdrant write failed"))
+        )
+        with client.stream("POST", "/api/process-stream", json={"meeting_id": "cs_lecture"}) as stream_resp:
+            assert stream_resp.status_code == 200
+            events = []
+            for line in stream_resp.iter_lines():
+                if line.startswith("data:"):
+                    events.append(json.loads(line[5:]))
+            error_events = [e for e in events if e.get("type") == "error"]
+            assert len(error_events) >= 1
+            assert error_events[0]["agent"] == "PipelineCoordinator"
+            assert "Pipeline processing failed" in error_events[0]["message"]

@@ -223,7 +223,7 @@ export function openGmailCompose() {
   const body = (bodyEl && bodyEl.innerText) ? bodyEl.innerText.trim() : '';
 
   if (!body || body === 'No email generated yet.') {
-    showToast('No email generated yet. Run the swarm first!');
+    showToast('No email generated yet. Run the pipeline first!');
     return;
   }
 
@@ -242,7 +242,7 @@ export function openMailto() {
   const body = (bodyEl && bodyEl.innerText) ? bodyEl.innerText.trim() : '';
 
   if (!body || body === 'No email generated yet.') {
-    showToast('No email generated yet. Run the swarm first!');
+    showToast('No email generated yet. Run the pipeline first!');
     return;
   }
 
@@ -289,7 +289,11 @@ export function renderQueryResult(data) {
   const answer = document.getElementById('query-answer');
   if (box && score && answer) {
     box.classList.remove('hidden');
-    score.innerText = `${Math.round(data.relevance_top * 100)}% Match`;
+    if (data.relevance_top !== undefined && data.relevance_top !== null) {
+      score.innerText = `Score: ${Number(data.relevance_top).toFixed(3)}`;
+    } else {
+      score.innerText = 'Semantic Match';
+    }
     answer.innerText = data.answer;
   }
 }
@@ -297,15 +301,13 @@ export function renderQueryResult(data) {
 // ─── Agent Pipeline Live Visualization (5 Agents) ─────────────────────────────
 
 const AGENT_LABELS = {
-  MemoryAgent:          { icon: '🗄️', label: 'Qdrant Memory Agent',       color: 'cyan' },
-  QdrantRetrieval:      { icon: '🔎', label: 'Qdrant Retrieval',           color: 'cyan' },
-  LyzrManager:          { icon: '🤖', label: 'Lyzr Manager Reasoning',     color: 'indigo' },
-  ActionExtractor:      { icon: '🎯', label: 'Action Extraction',          color: 'amber' },
-  ExecutiveSynthesizer: { icon: '🧠', label: 'Executive Synthesis',        color: 'indigo' },
-  TaskDispatcher:       { icon: '📬', label: 'Deterministic Drafts',        color: 'emerald' },
-  CalendarScheduler:    { icon: '📅', label: 'Calendar Intent',             color: 'violet' }
+  MemoryAgent:          { icon: '🗄️', label: '1. Qdrant Memory Indexing',     color: 'cyan' },
+  QdrantRetrieval:      { icon: '🔎', label: '2. Qdrant Retrieval',           color: 'cyan' },
+  LyzrManager:          { icon: '🤖', label: '3. Lyzr Manager Reasoning',     color: 'indigo' },
+  ActionExtractor:      { icon: '🎯', label: '4. Action/Decision Validation',  color: 'amber' },
+  TaskDispatcher:       { icon: '📬', label: '5. User-controlled Draft Outputs', color: 'emerald' },
 };
-const AGENT_ORDER = ['MemoryAgent', 'QdrantRetrieval', 'LyzrManager', 'ActionExtractor', 'ExecutiveSynthesizer', 'TaskDispatcher', 'CalendarScheduler'];
+const AGENT_ORDER = ['MemoryAgent', 'QdrantRetrieval', 'LyzrManager', 'ActionExtractor', 'TaskDispatcher'];
 
 export function showPipelinePanel() {
   const panel = document.getElementById('pipeline-panel');
@@ -317,6 +319,24 @@ export function showPipelinePanel() {
     if (!row) return;
     row.innerHTML = _agentRow(agent, 'pending', '');
   });
+}
+
+export function updatePipelineError(event) {
+  const { agent, message } = event;
+  const targetId = agent ? `pipeline-row-${agent}` : 'pipeline-row-MemoryAgent';
+  const row = document.getElementById(targetId);
+  if (row) {
+    row.innerHTML = `
+    <div class="flex items-start gap-2.5">
+      <div class="mt-0.5 flex-shrink-0"><span class="text-rose-400 font-bold">✗</span></div>
+      <div class="flex-1 min-w-0">
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-semibold text-rose-300 font-mono">Stage Error: ${escapeHtml(agent || 'Pipeline')}</span>
+        </div>
+        <p class="text-[10px] text-rose-400 font-mono mt-0.5">${escapeHtml(message || 'Failed')}</p>
+      </div>
+    </div>`;
+  }
 }
 
 export function updatePipelineAgent(event) {

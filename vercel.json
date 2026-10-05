@@ -6,6 +6,12 @@
       "use": "@vercel/python"
     }
   ],
+  "functions": {
+    "api/index.py": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  },
   "routes": [
     {
       "src": "/(.*)",

@@ -48,6 +48,15 @@ class DeterministicSubwordEmbedding(BaseEmbeddingModel):
     semantic n-grams, subword character n-grams, and stop-word filtering.
     Optimal for edge devices and low-latency serverless runtimes.
     """
+    provider_name: str = "deterministic"
+
+    def check_health(self) -> dict[str, Any]:
+        return {
+            "status": "ready",
+            "provider": self.provider_name,
+            "dimension": VECTOR_DIM,
+            "model": "deterministic-subword-hash",
+        }
 
     def embed_text(self, text: str, dim: int = VECTOR_DIM) -> list[float]:
         words = re.findall(r'[a-zA-Z0-9]+', text.lower())
@@ -92,6 +101,7 @@ class SentenceTransformerEmbedding(BaseEmbeddingModel):
     Utilizes standard sentence-transformers (e.g., all-MiniLM-L6-v2) or FastEmbed when available,
     with graceful fallback to DeterministicSubwordEmbedding.
     """
+    provider_name: str = "sentence_transformers"
 
     def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
         self.model_name = model_name
@@ -125,41 +135,137 @@ class SentenceTransformerEmbedding(BaseEmbeddingModel):
                 pass
         return self._fallback.embed_text(text, dim=dim)
 
+    def check_health(self) -> dict[str, Any]:
+        return {
+            "status": "ready" if self._get_model() else "degraded",
+            "provider": self.provider_name,
+            "dimension": VECTOR_DIM,
+            "model": self.model_name,
+        }
+
 
 class FastEmbedEmbedding(BaseEmbeddingModel):
     """The hackathon guide's semantic embedding provider."""
+    provider_name: str = "fastembed"
 
-    def __init__(self, model_name: str = EMBEDDING_MODEL_NAME):
+    def __init__(self, model_name: str = EMBEDDING_MODEL_NAME, cache_dir: str | None = None):
         self.model_name = model_name
+        self.cache_dir = cache_dir or os.environ.get("FASTEMBED_CACHE_DIR")
         self._model = None
+        self.initialization_error: str | None = None
+
+    def _resolve_cache_dir(self) -> tuple[str | None, bool]:
+        # 1. Check if bundled local cache directory exists in workspace
+        bundled_candidates = [
+            os.path.abspath("fastembed_cache"),
+            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "fastembed_cache")),
+            os.path.join(os.environ.get("LAMBDA_TASK_ROOT", ""), "fastembed_cache"),
+        ]
+
+        is_serverless = bool(
+            os.environ.get("VERCEL")
+            or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+            or os.environ.get("LAMBDA_TASK_ROOT")
+        )
+
+        for candidate in bundled_candidates:
+            if candidate and os.path.isdir(candidate):
+                if is_serverless:
+                    tmp_cache = "/tmp/fastembed_cache"
+                    if not os.path.exists(tmp_cache):
+                        import shutil
+                        try:
+                            shutil.copytree(candidate, tmp_cache)
+                            return tmp_cache, True
+                        except Exception:
+                            return candidate, True
+                    return tmp_cache, True
+                return candidate, True
+
+        # 2. Check explicitly configured cache dir or writable /tmp
+        if self.cache_dir:
+            return self.cache_dir, False
+
+        if is_serverless:
+            tmp_cache = "/tmp/fastembed_cache"
+            os.makedirs(tmp_cache, exist_ok=True)
+            return tmp_cache, False
+        return None, False
 
     def _get_model(self):
         if self._model is None:
-            from fastembed import TextEmbedding
+            # Ensure Hugging Face hub never writes to read-only home directories
+            is_serverless = bool(
+                os.environ.get("VERCEL")
+                or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+                or os.environ.get("LAMBDA_TASK_ROOT")
+            )
+            if is_serverless:
+                os.environ.setdefault("HF_HOME", "/tmp/huggingface")
+                os.environ.setdefault("TORCH_HOME", "/tmp/torch")
 
-            self._model = TextEmbedding(self.model_name)
+            try:
+                from fastembed import TextEmbedding
+            except ImportError as exc:
+                self.initialization_error = "fastembed package is not installed"
+                raise RuntimeError("FastEmbed library not available in runtime environment") from exc
+
+            cache_path, local_only = self._resolve_cache_dir()
+            kwargs: dict[str, Any] = {}
+            if cache_path:
+                kwargs["cache_dir"] = cache_path
+            if local_only:
+                kwargs["local_files_only"] = True
+
+            try:
+                self._model = TextEmbedding(self.model_name, **kwargs)
+                self.initialization_error = None
+            except Exception as exc:
+                self.initialization_error = f"Model load failed: {str(exc)}"
+                raise RuntimeError(f"Failed to initialize FastEmbed model '{self.model_name}'") from exc
         return self._model
 
     def embed_text(self, text: str, dim: int = VECTOR_DIM) -> list[float]:
-        vector = next(iter(self._get_model().embed([text])))
+        model = self._get_model()
+        vector = next(iter(model.embed([text])))
         values = vector.tolist() if hasattr(vector, "tolist") else list(vector)
         if len(values) != dim:
             raise ValueError(f"Embedding model returned {len(values)} dimensions; expected {dim}")
         return values
 
+    def check_health(self) -> dict[str, Any]:
+        try:
+            self._get_model()
+            return {
+                "status": "ready",
+                "provider": self.provider_name,
+                "dimension": VECTOR_DIM,
+                "model": self.model_name,
+            }
+        except Exception as exc:
+            return {
+                "status": "degraded",
+                "provider": self.provider_name,
+                "dimension": VECTOR_DIM,
+                "model": self.model_name,
+                "error": self.initialization_error or str(exc),
+            }
+
 
 # Embedding Provider Factory
 def get_embedding_provider() -> BaseEmbeddingModel:
-    provider = os.environ.get("EMBEDDING_PROVIDER", "fastembed").lower()
+    provider = os.environ.get("EMBEDDING_PROVIDER", "").lower()
+    if provider == "fastembed":
+        return FastEmbedEmbedding()
     if provider in ("test", "deterministic", "development") or "pytest" in sys.modules:
         return DeterministicSubwordEmbedding()
-    if provider in ("fastembed", "production", "default"):
-        return FastEmbedEmbedding()
-    if provider in ("sentence_transformers", "transformer", "production"):
+    if provider in ("sentence_transformers", "transformer"):
         return SentenceTransformerEmbedding()
-    return DeterministicSubwordEmbedding()
+    return FastEmbedEmbedding()
+
 
 _ACTIVE_EMBEDDING_MODEL = get_embedding_provider()
+
 
 def generate_semantic_embedding(text: str, dim: int = VECTOR_DIM) -> list[float]:
     """
@@ -167,6 +273,7 @@ def generate_semantic_embedding(text: str, dim: int = VECTOR_DIM) -> list[float]
     Dispatches to the active embedding provider.
     """
     return _ACTIVE_EMBEDDING_MODEL.embed_text(text, dim=dim)
+
 
 class QdrantMemoryAgent:
     def __init__(self, storage_path: str = "./qdrant_storage"):
@@ -182,18 +289,25 @@ class QdrantMemoryAgent:
             qdrant_api_key = os.environ.get("QDRANT_API_KEY") if not is_testing else None
 
         allow_ephemeral = is_testing or os.environ.get("ALLOW_EPHEMERAL_MEMORY", "false").lower() == "true"
+        self.storage_path = storage_path
+        self.qdrant_url = qdrant_url
+        self.embedding_model = _ACTIVE_EMBEDDING_MODEL
+
         if storage_path == ":memory:" or allow_ephemeral:
             self.client = QdrantClient(":memory:")
+            self.persistence_mode = "in_memory"
         elif qdrant_url:
             # Qdrant Cloud — persistent across cold starts
             try:
                 self.client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key or None, timeout=5)
+                self.persistence_mode = "cloud"
             except Exception as exc:
                 raise RuntimeError("Unable to connect to configured Qdrant service") from exc
         else:
             if is_serverless:
                 raise RuntimeError("Persistent Qdrant configuration is required in serverless production")
             self.client = QdrantClient(path=storage_path)
+            self.persistence_mode = "local_persistent"
 
         self._ensure_collection()
 
@@ -306,7 +420,8 @@ class QdrantMemoryAgent:
                 "text": hit.payload.get("text", ""),
                 "timestamp_str": hit.payload.get("timestamp_str", ""),
                 "topic": hit.payload.get("topic", "general"),
-                "session_id": hit.payload.get("session_id", "")
+                "session_id": hit.payload.get("session_id", ""),
+                "uid": hit.payload.get("uid", ""),
             })
 
         matches.sort(key=lambda m: m["score"], reverse=True)
@@ -338,9 +453,14 @@ class QdrantMemoryAgent:
 
     def get_stats(self) -> dict[str, Any]:
         info = self.client.get_collection(collection_name=COLLECTION_NAME)
+        provider_name = getattr(self.embedding_model, "provider_name", type(self.embedding_model).__name__)
+        health_info = getattr(self.embedding_model, "check_health", lambda: {"status": "ready"})()
         return {
             "collection": COLLECTION_NAME,
             "points_count": info.points_count or 0,
             "vector_dimension": VECTOR_DIM,
-            "distance_metric": "Cosine"
+            "distance_metric": "Cosine",
+            "embedding_provider": provider_name,
+            "embedding_health": health_info,
+            "persistence_mode": self.persistence_mode,
         }

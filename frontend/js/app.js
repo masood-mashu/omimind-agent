@@ -58,6 +58,9 @@ async function runStreamingPipeline(endpoint, body) {
             const badge = document.getElementById('qdrant-points-badge');
             if (badge) badge.innerText = `${event.dossier.indexed_vectors_count} Vectors`;
             ui.showToast('Qdrant → Lyzr pipeline complete');
+          } else if (event.type === 'error') {
+            ui.updatePipelineError(event);
+            ui.showToast(event.message || 'Pipeline processing failed', 'warning');
           } else {
             ui.updatePipelineAgent(event);
           }
@@ -68,7 +71,7 @@ async function runStreamingPipeline(endpoint, body) {
     console.error('Streaming pipeline failed', e);
     ui.showToast('Processing error: ' + e.message, 'warning');
   } finally {
-    if (btn) { btn.innerText = 'Ingest & Run Lyzr Swarm'; btn.disabled = false; }
+    if (btn) { btn.innerText = 'Ingest & Run Pipeline'; btn.disabled = false; }
     setTimeout(() => { isAudioActive = false; }, 1000);
   }
 }

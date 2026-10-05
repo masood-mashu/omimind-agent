@@ -126,3 +126,68 @@ class TestQdrantMemoryAgent:
             agent.index_utterance("sess_fb", "Bot", "Fallback test", 0.0, "00:00")
             stats = agent.get_stats()
             assert stats["points_count"] >= 1
+
+    def test_uid_scoped_qdrant_retrieval_isolation(self, memory_agent):
+        """Verify strict memory isolation between two different user UIDs."""
+        memory_agent.index_utterance(
+            session_id="session_alpha",
+            speaker="Alice",
+            text="The confidential project codename is Project Falcon.",
+            timestamp=1.0,
+            timestamp_str="00:01",
+            uid="user_alpha",
+        )
+        memory_agent.index_utterance(
+            session_id="session_beta",
+            speaker="Bob",
+            text="Our team is working on Project Bluebird architecture.",
+            timestamp=2.0,
+            timestamp_str="00:02",
+            uid="user_beta",
+        )
+
+        alpha_results = memory_agent.search_memory("project codename", uid="user_alpha")
+        assert len(alpha_results) >= 1
+        assert all(r.get("uid") == "user_alpha" for r in alpha_results)
+        assert any("Falcon" in r["text"] for r in alpha_results)
+        assert not any("Bluebird" in r["text"] for r in alpha_results)
+
+        beta_results = memory_agent.search_memory("project codename", uid="user_beta")
+        assert len(beta_results) >= 1
+        assert all(r.get("uid") == "user_beta" for r in beta_results)
+        assert any("Bluebird" in r["text"] for r in beta_results)
+        assert not any("Falcon" in r["text"] for r in beta_results)
+
+    def test_qdrant_stats_observability_fields(self, memory_agent):
+        stats = memory_agent.get_stats()
+        assert "embedding_provider" in stats
+        assert "vector_dimension" in stats
+        assert stats["vector_dimension"] == VECTOR_DIM
+        assert "persistence_mode" in stats
+        assert "embedding_health" in stats
+        assert stats["embedding_health"]["status"] in ("ready", "degraded")
+
+    def test_fastembed_cache_dir_and_dimensions(self):
+        import os
+
+        from agents.memory_agent import FastEmbedEmbedding
+
+        # Verify bundled cache resolution
+        embedder = FastEmbedEmbedding(cache_dir="fastembed_cache")
+        cache_path, _ = embedder._resolve_cache_dir()
+        assert cache_path is not None
+        assert os.path.isdir(cache_path)
+
+        # Verify 384-dimensional vector output
+        vec = embedder.embed_text("Test vector dimension", dim=VECTOR_DIM)
+        assert len(vec) == 384
+        health = embedder.check_health()
+        assert health["status"] == "ready"
+        assert health["dimension"] == 384
+
+    def test_fastembed_initialization_failure_behavior(self):
+        from agents.memory_agent import FastEmbedEmbedding
+        embedder = FastEmbedEmbedding(model_name="nonexistent/fake-model-12345")
+        health = embedder.check_health()
+        assert health["status"] == "degraded"
+        assert "error" in health
