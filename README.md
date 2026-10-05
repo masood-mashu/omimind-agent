@@ -119,6 +119,20 @@ The core intelligence layer executes five truthful, observable stages streamed l
 ### Real-Time SSE Observability
 In accordance with the hackathon scoring guidelines (*"Show the agents working. Log each step... Observable workflows are part of the score"*), the pipeline emits live Server-Sent Events (`/api/process-stream` and `/api/custom-voice-stream`). The browser dashboard visualizes each stage's active execution, live status, and numeric vector scores in real time.
 
+### 📊 Production Lyzr Studio Cloud Telemetry & Proof of Integration
+
+Rather than relying on local mock fallbacks or client-side simulations, every meeting synthesis and grounded Q&A query genuinely executes through **Lyzr Studio Cloud** (`gpt-4o`):
+
+<p align="center">
+  <img src="docs/assets/lyzr_studio_telemetry.png" alt="Lyzr Studio Cloud Production Telemetry" width="100%" />
+</p>
+
+- **Active Cloud Traces:** **132 live inference requests** executed and monitored during verification.
+- **Average Latency:** **2.25 seconds** per full multi-agent reasoning pass.
+- **Production Error Rate:** **0.00%** across all 132 cloud traces.
+- **Token Efficiency:** **3,517 average tokens per trace** (input transcript context from Qdrant + structured grounded output).
+- **Verifiable Consumption:** **11.78 Lyzr platform credits** utilized in cloud inference.
+
 ---
 
 ## 🖥️ Live Tested Demonstration Scenarios
