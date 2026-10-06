@@ -145,9 +145,9 @@ async def _stream_pipeline(
         yield sse({
             "stage": 3,
             "agent": "LyzrManager",
-            "stage_name": "Lyzr Manager Reasoning",
+            "stage_name": "Lyzr Manager Multi-Agent Swarm",
             "status": "running",
-            "message": "Sending grounded context to the configured Lyzr Manager...",
+            "message": "Invoking Lyzr Manager (dynamic delegation to Meeting Analyst, Action Extractor, Recall Agent)...",
         })
         lyzr_result = orchestrator.lyzr.reason(
             uid=session_id,
@@ -157,31 +157,34 @@ async def _stream_pipeline(
         yield sse({
             "stage": 3,
             "agent": "LyzrManager",
-            "stage_name": "Lyzr Manager Reasoning",
+            "stage_name": "Lyzr Manager Multi-Agent Swarm",
             "status": "done",
             "message": f"Reasoning provider: {lyzr_result.provider}.",
             "provider": lyzr_result.provider,
             "error": lyzr_result.error,
         })
 
-        # Stage 4: Action/Decision Validation
+        # Stage 4: Deterministic Normalization & Validation
         yield sse({
             "stage": 4,
             "agent": "ActionExtractor",
-            "stage_name": "Action/Decision Validation",
+            "stage_name": "Deterministic Normalization & Validation",
             "status": "running",
-            "message": "Validating verbal commitments, deadlines, and urgency signals...",
+            "message": "Normalizing multi-agent outputs, verbal commitments, and Jira schemas...",
         })
 
-        action_items = orchestrator.extractor.extract_from_transcript(lines)
-        summary = orchestrator.synthesizer.synthesize_meeting(title, lines)
+        summary, action_items = orchestrator.reconcile_meeting_intelligence(
+            lyzr_text=lyzr_result.text if lyzr_result.provider == "lyzr_studio_cloud" else "",
+            title=title,
+            transcript_lines=lines,
+        )
         decisions_found = len([d for d in summary.get("key_decisions", []) if "Consensus" not in d])
         risks_found = len([r for r in summary.get("risks_and_blockers", []) if "No critical" not in r])
 
         yield sse({
             "stage": 4,
             "agent": "ActionExtractor",
-            "stage_name": "Action/Decision Validation",
+            "stage_name": "Deterministic Normalization & Validation",
             "status": "done",
             "message": f"{len(action_items)} action item{'s' if len(action_items) != 1 else ''} validated, {decisions_found} decision{'s' if decisions_found != 1 else ''} confirmed, {risks_found} risk{'s' if risks_found != 1 else ''} flagged.",
             "count": len(action_items),

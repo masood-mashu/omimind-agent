@@ -69,9 +69,6 @@ def query_memory(req: QueryRequest):
 
     try:
         res = orchestrator.query_semantic_memory(query=req.question, limit=req.limit, uid=req.uid)
-        # Fallback to search across all records if specific uid search returns empty
-        if not res.get("matches") and req.uid != "default_user":
-            res = orchestrator.query_semantic_memory(query=req.question, limit=req.limit, uid=None)
         return res
     except Exception as exc:
         logger.error(f"Query memory error: {exc}")

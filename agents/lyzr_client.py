@@ -21,13 +21,21 @@ class LyzrResult:
 
 
 class LyzrClient:
-    def __init__(self, *, api_key: str | None = None, agent_id: str | None = None, url: str | None = None):
+    def __init__(
+        self,
+        *,
+        api_key: str | None = None,
+        agent_id: str | None = None,
+        url: str | None = None,
+        timeout: float | None = None,
+    ):
         self.api_key = api_key or os.environ.get("LYZR_API_KEY")
         self.agent_id = agent_id or os.environ.get("LYZR_MANAGER_AGENT_ID") or os.environ.get("LYZR_AGENT_ID")
         self.url = url or os.environ.get(
             "LYZR_INFERENCE_URL",
             "https://agent-prod.studio.lyzr.ai/v3/inference/chat/",
         )
+        self.timeout = timeout if timeout is not None else float(os.environ.get("LYZR_TIMEOUT_SECONDS", "45"))
 
     @property
     def configured(self) -> bool:
@@ -64,7 +72,7 @@ class LyzrClient:
                         "Answer only from the supplied context and identify the evidence used."
                     ),
                 },
-                timeout=float(os.environ.get("LYZR_TIMEOUT_SECONDS", "30")),
+                timeout=self.timeout,
             )
             response.raise_for_status()
             text = response.json().get("response", "")

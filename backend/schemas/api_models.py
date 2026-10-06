@@ -28,3 +28,4 @@ class OmiWebhookRequest(BaseModel):
     segments: list[dict[str, Any]] | None = None
     transcript: str | None = None
     speaker: str | None = "Omi User"
+    uid: str | None = "default_user"

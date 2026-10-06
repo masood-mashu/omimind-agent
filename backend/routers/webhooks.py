@@ -13,23 +13,25 @@ from backend.shared import orchestrator, parse_transcript, processed_cache
 router = APIRouter(tags=["Omi Webhooks"])
 
 
-def _process_omi_webhook(session_id: str, lines: list[dict[str, Any]]) -> None:
+def _process_omi_webhook(session_id: str, lines: list[dict[str, Any]], uid: str = "default_user") -> None:
     dossier = orchestrator.process_session(
         session_id=session_id,
         title="Omi Live Session",
         transcript_lines=lines,
+        uid=uid,
     )
     processed_cache[session_id] = dossier
 
 
-@router.post("/api/omi-webhook")
+@router.post("/api/omi-webhook", status_code=202)
 def omi_webhook(req: OmiWebhookRequest, background_tasks: BackgroundTasks):
     """
     Native Omi device webhook endpoint.
     Accepts Omi's standard segment payload or a flat transcript string.
-    Configure your Omi app to POST to: https://omimind-agent.vercel.app/api/omi-webhook
+    Acknowledges asynchronously with HTTP 202; schedules single-pass indexing in background.
     """
     session_id = req.session_id or f"omi_{uuid.uuid4().hex[:8]}"
+    uid = getattr(req, "uid", None) or "default_user"
 
     if req.segments:
         # Native Omi format: {"segments": [{"speaker": "...", "text": "...", "start": 0.0}]}
@@ -51,20 +53,8 @@ def omi_webhook(req: OmiWebhookRequest, background_tasks: BackgroundTasks):
     if not lines:
         raise HTTPException(status_code=400, detail="No valid utterances found in payload")
 
-    # Synchronous index to guarantee Qdrant persistence in serverless environments
-    for i, line in enumerate(lines):
-        orchestrator.memory.index_utterance(
-            session_id=session_id,
-            speaker=line.get("speaker", "Omi User"),
-            text=line.get("text", ""),
-            timestamp=float(i * 15),
-            timestamp_str=line.get("timestamp_str", "live"),
-            topic="omi_webhook",
-            urgency="normal",
-            uid="default_user",
-        )
-
-    background_tasks.add_task(_process_omi_webhook, session_id, lines)
+    # Authoritative single-pass indexing and processing deferred to background tasks
+    background_tasks.add_task(_process_omi_webhook, session_id, lines, uid)
     return {"status": "accepted", "session_id": session_id, "vectors_queued": len(lines)}
 
 

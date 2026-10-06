@@ -86,7 +86,7 @@ class TestApiEndpoints:
             ]
         }
         resp = client.post("/api/omi-webhook", json=payload)
-        assert resp.status_code == 200
+        assert resp.status_code in (200, 202)
         data = resp.json()
         assert data["status"] == "accepted"
         assert data["session_id"] == "pytest_omi_session"
@@ -97,7 +97,7 @@ class TestApiEndpoints:
             "transcript": "Dev Lead: We must deploy the Redis cache update by tomorrow.\nPM: Approved."
         }
         resp = client.post("/api/omi-webhook", json=payload)
-        assert resp.status_code == 200
+        assert resp.status_code in (200, 202)
         data = resp.json()
         assert data["status"] == "accepted"
 
@@ -291,3 +291,51 @@ class TestApiEndpoints:
         resp_svg = client.get("/favicon.svg")
         assert resp_svg.status_code == 200
         assert len(resp_svg.content) > 0
+
+    def test_uid_isolation_enforced(self, client):
+        from backend.main import orchestrator
+
+        # Index an utterance explicitly for Alice
+        orchestrator.memory.index_utterance(
+            session_id="alice_confidential_session",
+            speaker="Alice",
+            text="The top secret project code is Chimera 99.",
+            timestamp=10.0,
+            timestamp_str="00:10",
+            topic="confidential",
+            urgency="high",
+            uid="user_alice_99",
+        )
+
+        # Query memory as Bob
+        resp_bob = client.post("/api/query", json={"question": "What is the secret project code?", "uid": "user_bob_88"})
+        assert resp_bob.status_code == 200
+        data_bob = resp_bob.json()
+        assert len(data_bob["matches"]) == 0
+        assert "Chimera 99" not in data_bob["answer"]
+
+        # Query memory as Alice
+        resp_alice = client.post("/api/query", json={"question": "What is the secret project code?", "uid": "user_alice_99"})
+        assert resp_alice.status_code == 200
+        data_alice = resp_alice.json()
+        assert len(data_alice["matches"]) > 0
+        assert "Chimera 99" in data_alice["matches"][0]["text"]
+
+    def test_webhook_single_pass_deduplication(self, client):
+        from backend.main import orchestrator
+
+        initial_count = orchestrator.memory.get_stats()["points_count"]
+        payload = {
+            "session_id": "dedup_session_verify",
+            "segments": [
+                {"speaker": "Marcus", "text": "Unique utterance alpha for deduplication.", "start": 0.0},
+                {"speaker": "David", "text": "Unique utterance beta for deduplication.", "start": 5.0},
+            ]
+        }
+        resp = client.post("/api/omi-webhook", json=payload)
+        assert resp.status_code in (200, 202)
+
+        final_count = orchestrator.memory.get_stats()["points_count"]
+        # Exactly 2 new points should have been indexed, not 4
+        assert final_count == initial_count + 2
+

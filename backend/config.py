@@ -54,6 +54,10 @@ class Settings(BaseModel):
         default="https://agent-prod.studio.lyzr.ai/v3/inference/chat/",
         description="Lyzr Studio inference endpoint"
     )
+    lyzr_timeout_seconds: float = Field(
+        default=45.0,
+        description="Lyzr Studio inference timeout in seconds (accommodates multi-agent delegation)"
+    )
 
     # Omi Voice Wearable
     omi_api_key: str | None = Field(
@@ -76,6 +80,7 @@ class Settings(BaseModel):
             "lyzr_api_key": "LYZR_API_KEY",
             "lyzr_agent_id": "LYZR_AGENT_ID",
             "lyzr_manager_agent_id": "LYZR_MANAGER_AGENT_ID",
+            "lyzr_timeout_seconds": "LYZR_TIMEOUT_SECONDS",
             "api_secret_key": "API_SECRET_KEY",
             "omi_api_key": "OMI_API_KEY",
             "omi_webhook_secret": "OMI_WEBHOOK_SECRET",

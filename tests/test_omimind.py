@@ -108,3 +108,59 @@ def test_full_orchestration():
     res = orchestrator.query_semantic_memory("Why was there an outage and who was assigned?")
     assert res["relevance_top"] > 0
     assert len(res["matches"]) > 0
+
+
+def test_manager_output_reconciliation():
+    """Verify that structured Lyzr Manager markdown synthesis is parsed and normalized."""
+    orchestrator = OmiMindOrchestrator(storage_path=":memory:")
+    lyzr_markdown = """
+### Executive Summary
+The executive leadership team met to review Q4 infrastructure requirements and confirmed compute expansion.
+
+### Key Decisions Made:
+- Approved the 128-node reserved H100 cluster contingent on 50ms latency.
+- Mandated zero-trust VPC token redaction for all telemetry logs.
+
+### Action Items and Deliverables:
+- [High] Sarah to review the ScaleCloud vendor contract. Owner: Sarah, Due: Friday.
+- [Critical] David to enforce zero-trust token redaction. Owner: David, Due: Tomorrow.
+"""
+    transcript = [
+        {"speaker": "David", "text": "We need to finalize Q4 compute commitments."},
+        {"speaker": "Sarah", "text": "I will review the contract by Friday."},
+    ]
+
+    summary, actions = orchestrator.reconcile_meeting_intelligence(
+        lyzr_text=lyzr_markdown,
+        title="Q4 Review",
+        transcript_lines=transcript,
+    )
+
+    assert "leadership team met" in summary["executive_summary"]
+    assert len(summary["key_decisions"]) == 2
+    assert "128-node" in summary["key_decisions"][0]
+    assert len(actions) >= 2
+    assert any(a["assignee"] == "Sarah" for a in actions)
+    assert any(a["priority"] == "Critical" for a in actions)
+
+
+def test_offline_fallback_on_lyzr_failure():
+    """Verify that orchestrator falls back to deterministic extractors when Lyzr is unconfigured/offline."""
+    orchestrator = OmiMindOrchestrator(storage_path=":memory:")
+    transcript = [
+        {"speaker": "David", "text": "I will review the firewall by Friday."},
+        {"speaker": "Sarah", "text": "We agreed on the budget allocation."},
+    ]
+
+    # Empty/error lyzr_text
+    summary, actions = orchestrator.reconcile_meeting_intelligence(
+        lyzr_text="",
+        title="Offline Meeting",
+        transcript_lines=transcript,
+    )
+
+    assert summary["title"] == "Offline Meeting"
+    assert len(actions) == 1
+    assert actions[0]["assignee"] == "David"
+    assert "Friday" in actions[0]["due_date"]
+

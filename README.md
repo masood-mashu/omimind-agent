@@ -1,8 +1,8 @@
 # 🎙️ OmiMind: Ambient Voice Memory & Autonomous Chief of Staff
 
 [![CI Tests & Quality Gate](https://github.com/masood-mashu/omimind-agent/actions/workflows/ci.yml/badge.svg)](https://github.com/masood-mashu/omimind-agent/actions)
-[![Tests Passing](https://img.shields.io/badge/tests-92%20passed-brightgreen.svg)](https://github.com/masood-mashu/omimind-agent/actions)
-[![Coverage: 87.5%](https://img.shields.io/badge/coverage-87.5%25%20(gate%20%E2%89%A5%2085%25)-blue.svg)](https://github.com/masood-mashu/omimind-agent)
+[![Tests Passing](https://img.shields.io/badge/tests-99%20passed-brightgreen.svg)](https://github.com/masood-mashu/omimind-agent/actions)
+[![Coverage: 88.4%](https://img.shields.io/badge/coverage-88.4%25%20(gate%20%E2%89%A5%2085%25)-blue.svg)](https://github.com/masood-mashu/omimind-agent)
 [![Code Quality: Ruff](https://img.shields.io/badge/ruff-clean%20(McCabe%20%E2%89%A4%2010)-blueviolet.svg)](https://docs.astral.sh/ruff/)
 [![Python Versions](https://img.shields.io/badge/Python-3.10%20%7C%203.11-blue.svg)](https://www.python.org/)
 [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
@@ -193,9 +193,9 @@ The core intelligence layer executes five observable stages streamed live over S
 |---|---|---|---|
 | **Stage 1: Qdrant Memory Indexing** | [`agents/memory_agent.py`](agents/memory_agent.py)<br/>[`agents/embeddings/`](agents/embeddings/) | Vectorizes spoken utterances with FastEmbed `BAAI/bge-small-en-v1.5` dense embeddings into Qdrant Cloud. | 384-dim vectors indexed |
 | **Stage 2: Qdrant Retrieval** | [`agents/memory_agent.py`](agents/memory_agent.py) | Semantically retrieves relevant conversational evidence scoped by user ID (`uid`) via Cosine distance. | Grounded transcript context |
-| **Stage 3: Lyzr Manager Reasoning** | [`agents/lyzr_client.py`](agents/lyzr_client.py) | Lyzr Studio Cloud manager (`gpt-4o` / `gpt-4o-mini`) reasons over retrieved context to generate structured intelligence. | Grounded meeting intelligence |
-| **Stage 4: Action/Decision Validation** | [`agents/action_extractor.py`](agents/action_extractor.py)<br/>[`agents/executive_synth.py`](agents/executive_synth.py) | Validates verbal commitments, assignees, deadlines, strategic decisions, and highlighted engineering risks. | Kanban task cards & priority tags |
-| **Stage 5: User-controlled Draft Outputs** | [`agents/task_dispatcher.py`](agents/task_dispatcher.py)<br/>[`agents/calendar_scheduler.py`](agents/calendar_scheduler.py) | Drafts follow-up emails, Atlassian Jira issue schemas, RFC 5545 `.ics` files, and prefilled Google Meet URLs. | 1-Click drafts & calendar links |
+| **Stage 3: Lyzr Manager Multi-Agent Reasoning** | [`agents/lyzr_client.py`](agents/lyzr_client.py) | Lyzr Studio Cloud Manager (`6ac5795151dce5f00e746950`) delegates to specialized worker agents (*Meeting Analyst*, *Action Extractor*, *Recall Agent*) over retrieved transcript context. | Grounded multi-agent synthesis |
+| **Stage 4: Deterministic Validation & Reconciliation** | [`agents/orchestrator.py`](agents/orchestrator.py)<br/>[`agents/action_extractor.py`](agents/action_extractor.py)<br/>[`agents/executive_synth.py`](agents/executive_synth.py) | Reconciles Lyzr Manager output with deterministic schema normalization, assignee resolution, deadlines, and offline fallback. | Validated Kanban task cards & briefing |
+| **Stage 5: User-controlled Draft Outputs** | [`agents/task_dispatcher.py`](agents/task_dispatcher.py)<br/>[`agents/calendar_scheduler.py`](agents/calendar_scheduler.py) | Drafts follow-up emails, Atlassian Jira issue schemas (`OMI-1..6`), RFC 5545 `.ics` files, and prefilled Google Meet URLs. | 1-Click drafts & calendar links |
 
 ### Real-Time SSE Observability
 In accordance with the hackathon scoring guidelines (*"Show the agents working. Log each step... Observable workflows are part of the score"*), the pipeline emits live Server-Sent Events (`/api/process-stream` and `/api/custom-voice-stream`). The browser dashboard visualizes each stage's active execution, live status, and numeric vector scores in real time.
@@ -312,7 +312,8 @@ All settings are strongly typed using Pydantic Settings in [`backend/config.py`]
 | `QDRANT_API_KEY` | Optional | `None` | Qdrant Cloud API access key. |
 | `LYZR_API_KEY` | Optional | `None` | Lyzr Studio Cloud platform API key. |
 | `LYZR_AGENT_ID` | Optional | `None` | Primary Lyzr Studio Agent ID for meeting synthesis. |
-| `LYZR_MANAGER_AGENT_ID` | Optional | `None` | Lyzr Studio Manager Agent ID for high-level coordination. |
+| `LYZR_MANAGER_AGENT_ID` | Optional | `None` | Lyzr Studio Manager Agent ID (`6ac5795151dce5f00e746950`) coordinating specialist workers. |
+| `LYZR_TIMEOUT_SECONDS` | Optional | `45.0` | Timeout in seconds for Lyzr multi-agent reasoning calls. |
 | `LYZR_USER_ID` | Optional | `default_user` | User identifier for Lyzr session tracking. |
 | `EMBEDDING_PROVIDER` | Optional | `fastembed` | Active embedding engine: `fastembed`, `deterministic`, or `sentence_transformers`. |
 | `API_SECRET_KEY` | Optional | `None` | Secret key protecting sensitive webhooks and GDPR purge endpoints. |
@@ -334,40 +335,58 @@ $ pytest --cov=agents --cov=backend tests/ --cov-report=term-missing
 platform win32 -- Python 3.11.9, pytest-9.1.1, pluggy-1.6.0
 rootdir: D:\hackathon\omimind-agent
 configfile: pyproject.toml
-collected 92 items
+collected 100 items
 
-tests/test_action_extractor.py (7 tests)      PASSED [  7%]
-tests/test_api_endpoints.py (24 tests)        PASSED [ 33%]
-tests/test_calendar_scheduler.py (6 tests)    PASSED [ 41%]
-tests/test_embeddings.py (18 tests)           PASSED [ 60%]
-tests/test_executive_synth.py (3 tests)       PASSED [ 64%]
-tests/test_lyzr_client.py (2 tests)           PASSED [ 66%]
-tests/test_mcp_server.py (4 tests)            PASSED [ 70%]
-tests/test_memory_agent.py (18 tests)         PASSED [ 90%]
-tests/test_omimind.py (6 tests)               PASSED [ 96%]
-tests/test_task_dispatcher.py (3 tests)       PASSED [100%]
+tests/test_action_extractor.py (7 tests)      PASSED
+tests/test_api_endpoints.py (26 tests)        PASSED
+tests/test_calendar_scheduler.py (6 tests)    PASSED
+tests/test_embeddings.py (18 tests)           PASSED
+tests/test_executive_synth.py (3 tests)       PASSED
+tests/test_live_lyzr_manager.py (1 test)      SKIPPED (credential-gated live call)
+tests/test_lyzr_client.py (5 tests)           PASSED
+tests/test_mcp_server.py (4 tests)            PASSED
+tests/test_memory_agent.py (18 tests)         PASSED
+tests/test_omimind.py (8 tests)               PASSED
+tests/test_task_dispatcher.py (3 tests)       PASSED
 
 =============================== tests coverage ================================
 Name                                        Stmts   Miss  Cover   Missing
 -------------------------------------------------------------------------
-agents/action_extractor.py                     40      0   100%
-agents/calendar_scheduler.py                   41      2    95%   52-53
-agents/embeddings/__init__.py                  21      2    90%   28, 31
-agents/embeddings/base.py                      11      0   100%
-agents/embeddings/deterministic.py             37      0   100%
-agents/embeddings/fastembed.py                 83     18    78%   42-47, 51-58...
-agents/embeddings/sentence_transformer.py      54     10    81%   32-33, 44...
-agents/executive_synth.py                      30      0   100%
-agents/lyzr_client.py                          32      3    91%   72, 74-75
-agents/memory_agent.py                        114     18    84%   57-59, 69-80...
-agents/orchestrator.py                         35      0   100%
-agents/task_dispatcher.py                      15      0   100%
-backend/config.py                              38      4    89%   15-16, 90-91
-backend/main.py                                80     13    84%   98-99, 125...
-backend/mock_data.py                            2      0   100%
-backend/routers/__init__.py                     5      0   100%
-backend/routers/health.py                      14      0   100%
-backend/routers/memory.py                      71     12    83%   53, 74, 76-78...
+agents\__init__.py                              0      0   100%
+agents\action_extractor.py                     40      0   100%
+agents\calendar_scheduler.py                   41      2    95%   52-53
+agents\embeddings\__init__.py                  21      2    90%   28, 31
+agents\embeddings\base.py                      11      0   100%
+agents\embeddings\deterministic.py             37      0   100%
+agents\embeddings\fastembed.py                 83     18    78%   42-47, 51-58...
+agents\embeddings\sentence_transformer.py      54     10    81%   32-33, 44...
+agents\executive_synth.py                      30      0   100%
+agents\lyzr_client.py                          33      1    97%   80
+agents\memory_agent.py                        114     18    84%   57-59, 69-80...
+agents\orchestrator.py                         92      1    99%   180
+agents\task_dispatcher.py                      15      0   100%
+backend\__init__.py                             0      0   100%
+backend\config.py                              39      4    90%   15-16, 95-96
+backend\main.py                                80     13    84%   98-99, 125...
+backend\mock_data.py                            2      0   100%
+backend\routers\__init__.py                     5      0   100%
+backend\routers\health.py                      14      0   100%
+backend\routers\memory.py                      69     11    84%   53, 73-75...
+backend\routers\pipeline.py                    97     18    81%   50-52, 80-88...
+backend\routers\webhooks.py                    94     18    81%   51, 54, 77...
+backend\schemas\__init__.py                     2      0   100%
+backend\schemas\api_models.py                  18      0   100%
+backend\shared.py                              31      3    90%   28, 37-38
+-------------------------------------------------------------------------
+TOTAL                                        1022    119    88%
+Required test coverage of 85.0% reached. Total coverage: 88.36%
+================== 99 passed, 1 skipped in 93.99s ===================
+```
+
+```bash
+$ python -m ruff check .
+All checks passed!
+```  83%   53, 74, 76-78...
 backend/routers/pipeline.py                    98     18    82%   50-52, 80-88...
 backend/routers/webhooks.py                    95     18    81%   49, 52, 87...
 backend/schemas/api_models.py                  17      0   100%
