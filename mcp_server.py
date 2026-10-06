@@ -13,6 +13,17 @@ from agents.orchestrator import OmiMindOrchestrator
 from backend.mock_data import DEMO_MEETINGS
 
 
+def _parse_simple_transcript(raw: str) -> list[dict[str, str]]:
+    lines = []
+    for line in raw.split("\n"):
+        if ":" in line:
+            sp, tx = line.split(":", 1)
+            lines.append({"speaker": sp.strip(), "text": tx.strip()})
+        elif line.strip():
+            lines.append({"speaker": "Speaker", "text": line.strip()})
+    return lines
+
+
 class OmiMindMCPServer:
     def __init__(self, storage_path: str = "./qdrant_storage"):
         self.orchestrator = OmiMindOrchestrator(storage_path=storage_path)
@@ -151,14 +162,14 @@ class OmiMindMCPServer:
                 "message": f"Method '{method}' not found."
             }
         }
-
     def _execute_tool(self, name: str, args: dict[str, Any]) -> Any:
         if name == "search_ambient_memory":
-            query = args.get("query", "")
-            limit = int(args.get("limit", 4))
-            return self.orchestrator.query_semantic_memory(query=query, limit=limit)
+            return self.orchestrator.query_semantic_memory(
+                query=args.get("query", ""),
+                limit=int(args.get("limit", 4)),
+            )
 
-        elif name == "get_meeting_dossier":
+        if name == "get_meeting_dossier":
             m_id = args.get("meeting_id")
             if m_id not in DEMO_MEETINGS:
                 raise ValueError(f"Meeting '{m_id}' not found. Available: {list(DEMO_MEETINGS.keys())}")
@@ -166,29 +177,15 @@ class OmiMindMCPServer:
             return self.orchestrator.process_session(
                 session_id=meeting["id"],
                 title=meeting["title"],
-                transcript_lines=meeting["lines"]
+                transcript_lines=meeting["lines"],
             )
 
-        elif name == "extract_action_items":
-            raw = args.get("transcript", "")
-            lines = []
-            for line in raw.split("\n"):
-                if ":" in line:
-                    sp, tx = line.split(":", 1)
-                    lines.append({"speaker": sp.strip(), "text": tx.strip()})
-                elif line.strip():
-                    lines.append({"speaker": "Speaker", "text": line.strip()})
+        if name == "extract_action_items":
+            lines = _parse_simple_transcript(args.get("transcript", ""))
             return self.extractor.extract_from_transcript(lines)
 
-        elif name == "schedule_followup_events":
-            raw = args.get("transcript", "")
-            lines = []
-            for line in raw.split("\n"):
-                if ":" in line:
-                    sp, tx = line.split(":", 1)
-                    lines.append({"speaker": sp.strip(), "text": tx.strip()})
-                elif line.strip():
-                    lines.append({"speaker": "Speaker", "text": line.strip()})
+        if name == "schedule_followup_events":
+            lines = _parse_simple_transcript(args.get("transcript", ""))
             return self.scheduler.extract_calendar_events(lines)
 
         raise ValueError(f"Unknown tool: {name}")

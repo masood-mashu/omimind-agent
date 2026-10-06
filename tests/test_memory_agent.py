@@ -8,7 +8,7 @@ Covers:
 - Filtering by speaker and topic
 - Failure modes: empty input, punctuation-only, Qdrant client exceptions
 """
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -191,3 +191,48 @@ class TestQdrantMemoryAgent:
         health = embedder.check_health()
         assert health["status"] == "degraded"
         assert "error" in health
+
+    def test_payload_indexing_on_cloud_mode(self, memory_agent):
+        memory_agent.persistence_mode = "cloud"
+        with patch.object(memory_agent.client, "create_payload_index") as mock_idx:
+            memory_agent._ensure_collection()
+            assert mock_idx.call_count == 4
+        memory_agent.persistence_mode = "in_memory"
+
+    def test_search_with_topic_filter(self, memory_agent):
+        memory_agent.index_utterance("s3", "Alice", "Security audit report ready", 1.0, "00:01", topic="security")
+        memory_agent.index_utterance("s3", "Bob", "New logo design preview", 2.0, "00:02", topic="design")
+        results = memory_agent.search_memory("audit", topic="security")
+        assert len(results) >= 1
+        assert results[0]["topic"] == "security"
+
+    def test_delete_memory_by_point_id_and_session(self, memory_agent):
+        p_id = memory_agent.index_utterance("s_del", "Charlie", "Confidential text", 1.0, "00:01")
+        # Delete by int point_id
+        res_int = memory_agent.delete_memory(point_id=int(p_id))
+        assert res_int is True
+
+        # Index and delete by session_id
+        memory_agent.index_utterance("s_del2", "Charlie", "Another confidential note", 2.0, "00:02")
+        res_sess = memory_agent.delete_memory(session_id="s_del2")
+        assert res_sess is True
+
+        # Delete with exception returns False
+        with patch.object(memory_agent.client, "delete", side_effect=Exception("Qdrant unavailable")):
+            res_fail = memory_agent.delete_memory(point_id=p_id)
+            assert res_fail is False
+
+    def test_ensure_collection_recreates_on_dimension_mismatch(self, memory_agent):
+        mock_info = MagicMock()
+        mock_info.config.params.vectors.size = 128  # Mismatch with VECTOR_DIM (384)
+        with patch.object(memory_agent.client, "get_collections") as mock_get_colls:
+            mock_coll = MagicMock()
+            mock_coll.name = "omi_ambient_memory"
+            mock_get_colls.return_value.collections = [mock_coll]
+            with patch.object(memory_agent.client, "get_collection", return_value=mock_info):
+                with patch.object(memory_agent.client, "delete_collection") as mock_del:
+                    with patch.object(memory_agent.client, "create_collection") as mock_create:
+                        memory_agent._ensure_collection()
+                        assert mock_del.called
+                        assert mock_create.called
+

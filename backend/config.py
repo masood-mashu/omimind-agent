@@ -70,23 +70,20 @@ class Settings(BaseModel):
 
     def __init__(self, **data):
         super().__init__(**data)
-        # Populate from os.environ only if not explicitly passed in data
-        if "qdrant_url" not in data and "QDRANT_URL" in os.environ:
-            self.qdrant_url = os.environ["QDRANT_URL"]
-        if "qdrant_api_key" not in data and "QDRANT_API_KEY" in os.environ:
-            self.qdrant_api_key = os.environ["QDRANT_API_KEY"]
-        if "lyzr_api_key" not in data and "LYZR_API_KEY" in os.environ:
-            self.lyzr_api_key = os.environ["LYZR_API_KEY"]
-        if "lyzr_agent_id" not in data and "LYZR_AGENT_ID" in os.environ:
-            self.lyzr_agent_id = os.environ["LYZR_AGENT_ID"]
-        if "lyzr_manager_agent_id" not in data and "LYZR_MANAGER_AGENT_ID" in os.environ:
-            self.lyzr_manager_agent_id = os.environ["LYZR_MANAGER_AGENT_ID"]
-        if "api_secret_key" not in data and "API_SECRET_KEY" in os.environ:
-            self.api_secret_key = os.environ["API_SECRET_KEY"]
-        if "omi_api_key" not in data and "OMI_API_KEY" in os.environ:
-            self.omi_api_key = os.environ["OMI_API_KEY"]
-        if "omi_webhook_secret" not in data and "OMI_WEBHOOK_SECRET" in os.environ:
-            self.omi_webhook_secret = os.environ["OMI_WEBHOOK_SECRET"]
+        env_mappings = {
+            "qdrant_url": "QDRANT_URL",
+            "qdrant_api_key": "QDRANT_API_KEY",
+            "lyzr_api_key": "LYZR_API_KEY",
+            "lyzr_agent_id": "LYZR_AGENT_ID",
+            "lyzr_manager_agent_id": "LYZR_MANAGER_AGENT_ID",
+            "api_secret_key": "API_SECRET_KEY",
+            "omi_api_key": "OMI_API_KEY",
+            "omi_webhook_secret": "OMI_WEBHOOK_SECRET",
+        }
+        for attr, env_var in env_mappings.items():
+            if attr not in data and env_var in os.environ:
+                setattr(self, attr, os.environ[env_var])
+
         if "port" not in data and "PORT" in os.environ:
             try:
                 self.port = int(os.environ["PORT"])

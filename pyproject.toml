@@ -20,6 +20,7 @@ dependencies = [
     "fastembed>=0.3.0",
     "numpy>=1.24.0",
     "httpx>=0.25.0",
+    "sse-starlette>=2.0.0",
 ]
 
 [tool.setuptools.packages.find]
@@ -54,12 +55,15 @@ omit = ["tests/*"]
 
 [tool.coverage.report]
 show_missing = true
-fail_under = 80
+fail_under = 85.0
 
 [tool.ruff]
 line-length = 120
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "UP", "B", "C4"]
-ignore = ["E501", "B008", "C901"]
+select = ["E", "F", "W", "I", "UP", "B", "C4", "C901"]
+ignore = ["E501", "B008"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10

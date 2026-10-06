@@ -281,3 +281,13 @@ class TestApiEndpoints:
             assert len(error_events) >= 1
             assert error_events[0]["agent"] == "PipelineCoordinator"
             assert "Pipeline processing failed" in error_events[0]["message"]
+
+    def test_favicon_endpoints(self, client):
+        resp_ico = client.get("/favicon.ico")
+        assert resp_ico.status_code == 200
+        assert "image" in resp_ico.headers.get("content-type", "")
+        assert len(resp_ico.content) > 0
+
+        resp_svg = client.get("/favicon.svg")
+        assert resp_svg.status_code == 200
+        assert len(resp_svg.content) > 0

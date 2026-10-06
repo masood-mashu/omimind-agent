@@ -203,7 +203,7 @@ export function renderDossier(data) {
             <a href="${safeUrl(evt.google_calendar_url)}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs flex items-center gap-1.5 transition">
               <span>+ Google Meet</span>
             </a>
-            <button onclick="downloadICS(${idx})" class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition">
+            <button data-action="download-ics" data-ics-index="${idx}" class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition">
               .ics File
             </button>
           </div>

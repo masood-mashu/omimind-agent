@@ -1,6 +1,7 @@
 /**
- * app.js - Main Client Controller for OmiMind (v2.1)
+ * app.js - Main Client Controller for OmiMind (v2.2)
  * Ambient Audio Canvas Waveform + Observable Qdrant/Lyzr Stream Controller
+ * Modern event delegation without window.* global scope pollution.
  */
 import * as api from './api.js';
 import * as ui from './ui.js';
@@ -11,18 +12,11 @@ let voiceEngine = null;
 let searchDebounceTimer = null;
 let isAudioActive = false;
 
-window.switchTab = ui.switchTab;
-window.openGmailCompose = ui.openGmailCompose;
-window.openMailto = ui.openMailto;
-window.copyEmailText = ui.copyEmailText;
-window.copyJiraText = ui.copyJiraText;
-window.downloadICS = ui.downloadICS;
-
-window.selectMeeting = function(id) {
+function selectMeeting(id) {
   activeMeetingId = id;
   ui.updateMeetingButtons(id);
   ui.showToast(`Selected: ${id.replace('_', ' ').toUpperCase()}`);
-};
+}
 
 async function runStreamingPipeline(endpoint, body) {
   ui.showPipelinePanel();
@@ -76,18 +70,18 @@ async function runStreamingPipeline(endpoint, body) {
   }
 }
 
-window.processActiveMeeting = async function() {
+async function processActiveMeeting() {
   await runStreamingPipeline('/api/process-stream', { meeting_id: activeMeetingId });
-};
+}
 
-window.submitCustomVoice = async function() {
+async function submitCustomVoice() {
   const input = document.getElementById('live-voice-input');
   const text = input ? input.value.trim() : '';
   if (!text) return ui.showToast('Please speak or enter text first.', 'warning');
   await runStreamingPipeline('/api/custom-voice-stream', { transcript: text, speaker: 'Voice Input' });
-};
+}
 
-window.searchMemory = async function() {
+async function searchMemory() {
   const input = document.getElementById('query-input');
   const q = input ? input.value.trim() : '';
   if (!q) return;
@@ -97,9 +91,9 @@ window.searchMemory = async function() {
   } catch (e) {
     console.error('Search failed', e);
   }
-};
+}
 
-window.toggleMic = async function() {
+async function toggleMic() {
   const statusEl = document.getElementById('mic-status');
   const btnText = document.getElementById('mic-btn-text');
   const btn = document.getElementById('btn-mic');
@@ -137,7 +131,7 @@ window.toggleMic = async function() {
   }
 
   await voiceEngine.toggle();
-};
+}
 
 // ─── Ambient Audio Waveform Canvas Animation Loop ─────────────────────────────
 
@@ -210,15 +204,81 @@ function initWaveformCanvas() {
   requestAnimationFrame(draw);
 }
 
-// ─── Live Search Debounce ──────────────────────────────────────────────────────
+// ─── Modern Event Delegation Initialization ───────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
+  // Delegated Click Handlers
+  document.addEventListener('click', (e) => {
+    // 1. Tab Navigation
+    const tabBtn = e.target.closest('[data-tab]');
+    if (tabBtn) {
+      const tabId = tabBtn.getAttribute('data-tab');
+      if (tabId) ui.switchTab(tabId);
+      return;
+    }
+
+    // 2. Preset Meeting Selection
+    const meetingBtn = e.target.closest('[data-meeting-id]');
+    if (meetingBtn) {
+      const meetingId = meetingBtn.getAttribute('data-meeting-id');
+      if (meetingId) selectMeeting(meetingId);
+      return;
+    }
+
+    // 3. Action Buttons
+    const actionBtn = e.target.closest('[data-action]');
+    if (actionBtn) {
+      const action = actionBtn.getAttribute('data-action');
+      switch (action) {
+        case 'process-meeting':
+          processActiveMeeting();
+          break;
+        case 'toggle-mic':
+          toggleMic();
+          break;
+        case 'submit-voice':
+          submitCustomVoice();
+          break;
+        case 'search-memory':
+          searchMemory();
+          break;
+        case 'open-gmail':
+          ui.openGmailCompose();
+          break;
+        case 'open-mailto':
+          ui.openMailto();
+          break;
+        case 'copy-email':
+          ui.copyEmailText();
+          break;
+        case 'copy-jira':
+          ui.copyJiraText();
+          break;
+        case 'download-ics': {
+          const idx = actionBtn.getAttribute('data-ics-index');
+          if (idx !== null && idx !== undefined) {
+            ui.downloadICS(parseInt(idx, 10));
+          }
+          break;
+        }
+      }
+    }
+  });
+
+  // Search Input Listeners (Keyboard + Live Debounce)
   const queryInput = document.getElementById('query-input');
   if (queryInput) {
+    queryInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        clearTimeout(searchDebounceTimer);
+        searchMemory();
+      }
+    });
+
     queryInput.addEventListener('input', () => {
       clearTimeout(searchDebounceTimer);
       searchDebounceTimer = setTimeout(() => {
-        window.searchMemory();
+        searchMemory();
       }, 400);
     });
   }

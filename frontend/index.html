@@ -5,6 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>OmiMind | Ambient Voice Memory & Autonomous Chief of Staff</title>
   <meta name="description" content="Voice Intelligence powered by Omi ambient audio, Qdrant vector memory, and Lyzr multi-agent framework.">
+  <meta name="theme-color" content="#020617">
+
+  <!-- Favicon and Touch Icons -->
+  <link rel="icon" type="image/x-icon" href="./favicon.ico?v=3">
+  <link rel="shortcut icon" href="./favicon.ico?v=3">
+  <link rel="icon" type="image/png" sizes="32x32" href="./favicon-32x32.png?v=3">
+  <link rel="icon" type="image/png" sizes="16x16" href="./favicon-16x16.png?v=3">
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCIgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0Ij4KICA8ZGVmcz4KICAgIDxsaW5lYXJHcmFkaWVudCBpZD0ib21pbWluZC1ncmFkIiB4MT0iMCUiIHkxPSIwJSIgeDI9IjEwMCUiIHkyPSIxMDAlIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iIzA2YjZkNCIgLz4KICAgICAgPHN0b3Agb2Zmc2V0PSI1MCUiIHN0b3AtY29sb3I9IiMyNTYzZWIiIC8+CiAgICAgIDxzdG9wIG9mZnNldD0iMTAwJSIgc3RvcC1jb2xvcj0iIzRmNDZlNSIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgICA8bGluZWFyR3JhZGllbnQgaWQ9InNoaW5lLWdyYWQiIHgxPSIwJSIgeTE9IjAlIiB4Mj0iMCUiIHkyPSIxMDAlIj4KICAgICAgPHN0b3Agb2Zmc2V0PSIwJSIgc3RvcC1jb2xvcj0iI2ZmZmZmZiIgc3RvcC1vcGFjaXR5PSIwLjM1IiAvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEwMCUiIHN0b3AtY29sb3I9IiNmZmZmZmYiIHN0b3Atb3BhY2l0eT0iMCIgLz4KICAgIDwvbGluZWFyR3JhZGllbnQ+CiAgPC9kZWZzPgoKICA8IS0tIFNxdWlyY2xlIEJhY2tncm91bmQgLS0+CiAgPHJlY3QgeD0iMiIgeT0iMiIgd2lkdGg9IjYwIiBoZWlnaHQ9IjYwIiByeD0iMTYiIGZpbGw9InVybCgjb21pbWluZC1ncmFkKSIgc3Ryb2tlPSIjMzhiZGY4IiBzdHJva2Utd2lkdGg9IjEuNSIgc3Ryb2tlLW9wYWNpdHk9IjAuNiIgLz4KICAKICA8IS0tIFN1YnRsZSBUb3AgSGlnaGxpZ2h0IC8gR2xvc3MgLS0+CiAgPHBhdGggZD0iTSA0IDE4IEMgNCA4IDggNCAxOCA0IEwgNDYgNCBDIDU2IDQgNjAgOCA2MCAxOCBDIDYwIDE0IDU0IDEwIDQ0IDEwIEwgMjAgMTAgQyAxMCAxMCA0IDE0IDQgMTggWiIgZmlsbD0idXJsKCNzaGluZS1ncmFkKSIgLz4KCiAgPCEtLSBBbWJpZW50IFZvaWNlIFdhdmVzIChMZWZ0KSAtLT4KICA8cGF0aCBkPSJNIDE4IDI1IEMgMTYuNSAyNy41IDE2LjUgMzEuNSAxOCAzNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZTBmMmZlIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBvcGFjaXR5PSIwLjkiIC8+CiAgPHBhdGggZD0iTSAxMyAyMSBDIDEwLjUgMjUuNSAxMC41IDMzLjUgMTMgMzgiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2JhZTZmZCIgc3Ryb2tlLXdpZHRoPSIyLjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgb3BhY2l0eT0iMC42IiAvPgoKICA8IS0tIEFtYmllbnQgVm9pY2UgV2F2ZXMgKFJpZ2h0KSAtLT4KICA8cGF0aCBkPSJNIDQ2IDI1IEMgNDcuNSAyNy41IDQ3LjUgMzEuNSA0NiAzNCIgZmlsbD0ibm9uZSIgc3Ryb2tlPSIjZTBmMmZlIiBzdHJva2Utd2lkdGg9IjIuNSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIiBvcGFjaXR5PSIwLjkiIC8+CiAgPHBhdGggZD0iTSA1MSAyMSBDIDUzLjUgMjUuNSA1My41IDMzLjUgNTEgMzgiIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2JhZTZmZCIgc3Ryb2tlLXdpZHRoPSIyLjIiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgb3BhY2l0eT0iMC42IiAvPgoKICA8IS0tIENlbnRyYWwgTWljcm9waG9uZSBDYXBzdWxlIC0tPgogIDxyZWN0IHg9IjI3IiB5PSIxNiIgd2lkdGg9IjEwIiBoZWlnaHQ9IjE3IiByeD0iNSIgZmlsbD0iI2ZmZmZmZiIgLz4KICA8IS0tIENhcHN1bGUgVm9pY2UgU2xpdCAtLT4KICA8bGluZSB4MT0iMzIiIHkxPSIyMCIgeDI9IjMyIiB5Mj0iMjUiIHN0cm9rZT0iIzI1NjNlYiIgc3Ryb2tlLXdpZHRoPSIyIiBzdHJva2UtbGluZWNhcD0icm91bmQiIC8+CgogIDwhLS0gTWljIEFyYyBTdXBwb3J0IC0tPgogIDxwYXRoIGQ9Ik0gMjMgMjcgQyAyMyAzNS41IDQxIDM1LjUgNDEgMjciIGZpbGw9Im5vbmUiIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIyLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KCiAgPCEtLSBNaWMgU3RlbSAmIEJhc2UgU3RhbmQgLS0+CiAgPGxpbmUgeDE9IjMyIiB5MT0iMzUuNSIgeDI9IjMyIiB5Mj0iNDQiIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIyLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KICA8bGluZSB4MT0iMjUiIHkxPSI0NCIgeDI9IjM5IiB5Mj0iNDQiIHN0cm9rZT0iI2ZmZmZmZiIgc3Ryb2tlLXdpZHRoPSIyLjUiIHN0cm9rZS1saW5lY2FwPSJyb3VuZCIgLz4KCiAgPCEtLSBOZXVyYWwgQ29yZSBMaWdodCBEb3QgLS0+CiAgPGNpcmNsZSBjeD0iMzIiIGN5PSI0MCIgcj0iMS4zIiBmaWxsPSIjMzhiZGY4IiAvPgo8L3N2Zz4K">
+  <link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png?v=3">
+  <link rel="manifest" href="./site.webmanifest">
+  <script>
+    // Force immediate cache-busting favicon update in Chromium/Safari
+    (function() {
+      const link = document.createElement('link');
+      link.type = 'image/x-icon';
+      link.rel = 'shortcut icon';
+      link.href = './favicon.ico?v=' + Date.now();
+      document.head.appendChild(link);
+    })();
+  </script>
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -69,7 +90,7 @@
         </h2>
 
         <div class="space-y-2 mb-4">
-          <button onclick="selectMeeting('q4_strategy')" id="btn-q4_strategy" class="w-full text-left p-3.5 rounded-xl border border-cyan-500/40 bg-cyan-500/10 transition flex flex-col gap-1 hover:border-cyan-400">
+          <button data-meeting-id="q4_strategy" id="btn-q4_strategy" class="w-full text-left p-3.5 rounded-xl border border-cyan-500/40 bg-cyan-500/10 transition flex flex-col gap-1 hover:border-cyan-400">
             <div class="flex justify-between items-center">
               <span class="font-semibold text-sm text-cyan-200">Q4 AI Strategy & Budget</span>
               <span class="text-xs px-2 py-0.5 rounded bg-cyan-900/60 text-cyan-300 font-mono">Executive</span>
@@ -77,7 +98,7 @@
             <span class="text-xs text-slate-400">CFO Sarah, CTO David, VP Elena, Marcus</span>
           </button>
 
-          <button onclick="selectMeeting('sre_postmortem')" id="btn-sre_postmortem" class="w-full text-left p-3.5 rounded-xl border border-slate-800 bg-slate-900/40 transition flex flex-col gap-1 hover:border-slate-700">
+          <button data-meeting-id="sre_postmortem" id="btn-sre_postmortem" class="w-full text-left p-3.5 rounded-xl border border-slate-800 bg-slate-900/40 transition flex flex-col gap-1 hover:border-slate-700">
             <div class="flex justify-between items-center">
               <span class="font-semibold text-sm text-slate-200">P0 Payment Outage Postmortem</span>
               <span class="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">SRE & Ops</span>
@@ -85,7 +106,7 @@
             <span class="text-xs text-slate-400">Ingress TLS cert expiry & mitigation</span>
           </button>
 
-          <button onclick="selectMeeting('cs_lecture')" id="btn-cs_lecture" class="w-full text-left p-3.5 rounded-xl border border-slate-800 bg-slate-900/40 transition flex flex-col gap-1 hover:border-slate-700">
+          <button data-meeting-id="cs_lecture" id="btn-cs_lecture" class="w-full text-left p-3.5 rounded-xl border border-slate-800 bg-slate-900/40 transition flex flex-col gap-1 hover:border-slate-700">
             <div class="flex justify-between items-center">
               <span class="font-semibold text-sm text-slate-200">Stanford CS229: FlashAttention</span>
               <span class="text-xs px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono">Lecture</span>
@@ -94,7 +115,7 @@
           </button>
         </div>
 
-        <button id="btn-process" onclick="processActiveMeeting()" class="w-full py-2.5 px-4 rounded-xl font-medium text-sm text-white bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 shadow-lg shadow-cyan-600/25 transition flex items-center justify-center gap-2">
+        <button id="btn-process" data-action="process-meeting" class="w-full py-2.5 px-4 rounded-xl font-medium text-sm text-white bg-gradient-to-r from-cyan-600 via-blue-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 shadow-lg shadow-cyan-600/25 transition flex items-center justify-center gap-2">
           <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/></svg>
           Ingest & Run Pipeline
         </button>
@@ -132,11 +153,11 @@
           <textarea id="live-voice-input" rows="3" placeholder="Speak into mic or type raw voice transcript: 'I will finalize the security audit by Thursday and let us schedule a follow-up review tomorrow at 2 PM...'" class="w-full p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-xs font-mono text-slate-200 focus:outline-none focus:border-cyan-500 resize-none custom-scrollbar"></textarea>
 
           <div class="flex gap-2">
-            <button id="btn-mic" onclick="toggleMic()" class="flex-1 py-2 px-3 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-medium transition flex items-center justify-center gap-2 text-cyan-300">
+            <button id="btn-mic" data-action="toggle-mic" class="flex-1 py-2 px-3 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-medium transition flex items-center justify-center gap-2 text-cyan-300">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z"/></svg>
               <span id="mic-btn-text">Record Voice</span>
             </button>
-            <button onclick="submitCustomVoice()" class="py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-medium text-white transition shadow-md shadow-indigo-600/20">
+            <button id="btn-submit-voice" data-action="submit-voice" class="py-2 px-4 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-xs font-medium text-white transition shadow-md shadow-indigo-600/20">
               Vectorize
             </button>
           </div>
@@ -152,8 +173,8 @@
 
         <div class="space-y-3">
           <div class="relative">
-            <input type="text" id="query-input" placeholder="e.g., What did Sarah say about the budget?" onkeydown="if(event.key==='Enter') searchMemory()" class="w-full py-2.5 pl-3 pr-9 rounded-xl bg-slate-900/90 border border-slate-700 text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-400">
-            <button onclick="searchMemory()" class="absolute right-2.5 top-2.5 text-slate-400 hover:text-white">
+            <input type="text" id="query-input" placeholder="e.g., What did Sarah say about the budget?" class="w-full py-2.5 pl-3 pr-9 rounded-xl bg-slate-900/90 border border-slate-700 text-xs text-slate-200 font-mono focus:outline-none focus:border-indigo-400">
+            <button id="btn-search-memory" data-action="search-memory" class="absolute right-2.5 top-2.5 text-slate-400 hover:text-white">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             </button>
           </div>
@@ -176,19 +197,19 @@
       <!-- Navigation Tabs -->
       <div class="flex items-center justify-between border-b border-slate-800 pb-3">
         <div class="flex gap-2 flex-wrap">
-          <button id="tab-summary-btn" onclick="switchTab('summary')" class="px-4 py-2 rounded-xl text-sm font-semibold bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 transition">
+          <button id="tab-summary-btn" data-tab="summary" class="px-4 py-2 rounded-xl text-sm font-semibold bg-cyan-600/20 text-cyan-300 border border-cyan-500/30 transition">
             Executive Synthesis
           </button>
-          <button id="tab-tasks-btn" onclick="switchTab('tasks')" class="px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 transition">
+          <button id="tab-tasks-btn" data-tab="tasks" class="px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 transition">
             Action Items & Kanban
           </button>
-          <button id="tab-calendar-btn" onclick="switchTab('calendar')" class="px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 transition">
+          <button id="tab-calendar-btn" data-tab="calendar" class="px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 transition">
             📅 Calendar Sync
           </button>
-          <button id="tab-email-btn" onclick="switchTab('email')" class="px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 transition">
+          <button id="tab-email-btn" data-tab="email" class="px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 transition">
             Follow-Up Email
           </button>
-          <button id="tab-jira-btn" onclick="switchTab('jira')" class="px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 transition">
+          <button id="tab-jira-btn" data-tab="jira" class="px-4 py-2 rounded-xl text-sm font-semibold text-slate-400 hover:text-slate-200 transition">
             Jira Tickets
           </button>
         </div>
@@ -264,15 +285,15 @@
               <p class="text-xs text-slate-400 font-mono">Synthesized by Lyzr Task Dispatcher</p>
             </div>
             <div class="flex items-center gap-2">
-              <button onclick="openGmailCompose()" class="px-3 py-1.5 rounded-lg border border-red-500/40 bg-red-950/40 hover:bg-red-900/60 text-xs font-mono transition flex items-center gap-1.5 text-red-300 shadow-sm shadow-red-950/50 hover:border-red-400">
+              <button data-action="open-gmail" class="px-3 py-1.5 rounded-lg border border-red-500/40 bg-red-950/40 hover:bg-red-900/60 text-xs font-mono transition flex items-center gap-1.5 text-red-300 shadow-sm shadow-red-950/50 hover:border-red-400">
                 <svg class="w-3.5 h-3.5 text-red-400" viewBox="0 0 24 24" fill="currentColor"><path d="M24 5.457v13.909c0 .904-.732 1.636-1.636 1.636h-3.819V11.73L12 16.64l-6.545-4.91v9.268H1.636A1.636 1.636 0 0 1 0 19.366V5.457c0-2.023 2.309-3.178 3.927-1.964L5.455 4.64 12 9.548l6.545-4.91 1.528-1.145C21.69 2.28 24 3.434 24 5.457z"/></svg>
                 <span class="font-semibold">Send via Gmail</span>
               </button>
-              <button onclick="openMailto()" class="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-mono transition flex items-center gap-1.5 text-slate-300">
+              <button data-action="open-mailto" class="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-mono transition flex items-center gap-1.5 text-slate-300">
                 <svg class="w-3.5 h-3.5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
                 <span>Default App</span>
               </button>
-              <button onclick="copyEmailText()" class="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-mono transition flex items-center gap-1.5 text-cyan-300">
+              <button data-action="copy-email" class="px-2.5 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-mono transition flex items-center gap-1.5 text-cyan-300">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
                 <span>Copy</span>
               </button>
@@ -300,7 +321,7 @@
               <h3 class="text-base font-bold text-white mb-0.5">Generated Jira / GitHub Tasks</h3>
               <p class="text-xs text-slate-400 font-mono">Formatted for direct API sync</p>
             </div>
-            <button onclick="copyJiraText()" class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-mono transition flex items-center gap-1.5 text-cyan-300">
+            <button data-action="copy-jira" class="px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-mono transition flex items-center gap-1.5 text-cyan-300">
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3"/></svg>
               <span>Copy JSON</span>
             </button>
