@@ -387,20 +387,6 @@ Required test coverage of 85.0% reached. Total coverage: 88.36%
 ```bash
 $ python -m ruff check .
 All checks passed!
-```  83%   53, 74, 76-78...
-backend/routers/pipeline.py                    98     18    82%   50-52, 80-88...
-backend/routers/webhooks.py                    95     18    81%   49, 52, 87...
-backend/schemas/api_models.py                  17      0   100%
-backend/shared.py                              31      3    90%   28, 37-38
--------------------------------------------------------------------------
-TOTAL                                         966    121    87%
-Required test coverage of 85.0% reached. Total coverage: 87.47%
-============================= 92 passed in 74.53s =============================
-```
-
-```bash
-$ python -m ruff check .
-All checks passed!
 ```
 
 ---
