@@ -158,16 +158,17 @@ omimind-agent/
 │   ├── favicon.svg                   # Vector SVG favicon
 │   ├── site.webmanifest              # Progressive Web App (PWA) manifest
 │   └── index.html                    # Semantic HTML5 user interface
-├── tests/                            # Comprehensive automated test suite (92 tests)
+├── tests/                            # Comprehensive automated test suite (100 tests)
 │   ├── test_action_extractor.py      # Action extraction & priority scoring tests
 │   ├── test_api_endpoints.py         # FastAPI router, webhook & telemetry tests
 │   ├── test_calendar_scheduler.py    # Calendar scheduling & .ics formatting tests
 │   ├── test_embeddings.py            # Modular embedding engines & batch tests
 │   ├── test_executive_synth.py       # Executive brief & risk synthesis tests
-│   ├── test_lyzr_client.py           # Lyzr Studio Cloud connectivity tests
+│   ├── test_live_lyzr_manager.py     # Live Lyzr Manager contract integration test
+│   ├── test_lyzr_client.py           # Lyzr Studio Cloud connectivity & hierarchy tests
 │   ├── test_mcp_server.py            # Model Context Protocol JSON-RPC tests
 │   ├── test_memory_agent.py          # Qdrant hybrid recall, isolation & GDPR tests
-│   ├── test_omimind.py               # End-to-end swarm integration tests
+│   ├── test_omimind.py               # End-to-end swarm integration & reconciliation tests
 │   └── test_task_dispatcher.py       # Jira & email draft formatting tests
 ├── docs/                             # Deep-dive architecture and demo specifications
 │   ├── assets/                       # Telemetry proofs and high-resolution diagrams
@@ -215,7 +216,7 @@ Rather than relying on local mock fallbacks or client-side simulations, every me
 - **Token Efficiency:** **3,517 average tokens per trace** across all requests.
 - **Total Development Runs:** **214 cumulative executions** logged in Lyzr Studio across exhaustive end-to-end testing.
 - **Credit Consumption:** **19.58 of 20.00 Lyzr platform credits** consumed during development and stress testing.
-- **Quota Ceiling & Graceful Resilience:** On Oct 6, continuous verification reached the free-tier quota ceiling (0.42 credits remaining), triggering expected cloud quota rejections on Lyzr's side. The system demonstrated automatic resilience via deterministic synthesis fallback and now supports the high-efficiency **`gpt-4o-mini`** model (`Agent ID: 6ac5666bf9e23d7db3dcce95`) requiring ~15x fewer credits per inference pass.
+- **Quota Ceiling & Graceful Resilience:** On Oct 6, continuous verification reached the free-tier quota ceiling (0.42 credits remaining), triggering expected cloud quota rejections on Lyzr's side. The system demonstrated automatic resilience via deterministic synthesis fallback and now operates on the verified multi-agent hierarchy governed by the high-efficiency **`gpt-4o-mini`** Manager (`Agent ID: 6ac5795151dce5f00e746950`) requiring ~15x fewer credits per inference pass.
 
 #### 🔍 Token Consumption Breakdown
 Across the live traces averaging ~3,500 tokens per trace, token consumption breaks down across three distinct phases:
