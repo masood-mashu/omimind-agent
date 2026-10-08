@@ -89,8 +89,8 @@ def omi_webhook(
     Acknowledges asynchronously with HTTP 202; schedules single-pass indexing in background.
     """
     # Idempotency is recorded only after the payload has passed validation.
-    event_id = req.event_id
-    session_id = event_id or f"omi_{uuid.uuid4().hex[:8]}"
+    event_id = req.event_id or req.session_id
+    session_id = req.session_id or req.event_id or f"omi_{uuid.uuid4().hex[:8]}"
     uid = user.uid
 
     if req.segments:
@@ -118,7 +118,7 @@ def omi_webhook(
         return {
             "status": "duplicate",
             "message": "Webhook event already processed",
-            "session_id": event_id,
+            "session_id": session_id,
             "vectors_queued": 0,
         }
 
