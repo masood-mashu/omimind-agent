@@ -69,7 +69,8 @@ class QdrantMemoryAgent:
         elif qdrant_url:
             # Qdrant Cloud — persistent across cold starts
             try:
-                self.client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key or None, timeout=5)
+                qdrant_timeout = float(os.environ.get("QDRANT_TIMEOUT", "25"))
+                self.client = QdrantClient(url=qdrant_url, api_key=qdrant_api_key or None, timeout=qdrant_timeout)
                 self.persistence_mode = "cloud"
             except Exception as exc:
                 raise RuntimeError("Unable to connect to configured Qdrant service") from exc
@@ -254,6 +255,38 @@ class QdrantMemoryAgent:
             "embedding_health": health_info,
             "persistence_mode": self.persistence_mode,
         }
+
+    def get_recent_memories(self, limit: int = 30, uid: str | None = None) -> list[dict[str, Any]]:
+        """
+        Scrolls recent indexed memory utterances from Qdrant with optional UID filtering.
+        """
+        try:
+            scroll_filter = None
+            if uid:
+                scroll_filter = Filter(must=[FieldCondition(key="uid", match=MatchValue(value=uid))])
+            points, _ = self.client.scroll(
+                collection_name=COLLECTION_NAME,
+                scroll_filter=scroll_filter,
+                limit=limit,
+                with_payload=True,
+                with_vectors=False,
+            )
+            memories = []
+            for p in points:
+                payload = p.payload or {}
+                memories.append({
+                    "id": str(p.id),
+                    "speaker": payload.get("speaker", "Unknown"),
+                    "text": payload.get("text", ""),
+                    "timestamp": payload.get("timestamp", 0.0),
+                    "timestamp_str": payload.get("timestamp_str", ""),
+                    "topic": payload.get("topic", "general"),
+                    "session_id": payload.get("session_id", ""),
+                    "uid": payload.get("uid", ""),
+                })
+            return memories
+        except Exception:
+            return []
 
 
 # Alias for clean naming

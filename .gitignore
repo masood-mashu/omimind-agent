@@ -16,3 +16,10 @@ qdrant_storage/
 .vercel
 .vscode/
 .idea/
+
+# Local cache & tooling
+fastembed_cache/
+.agents/
+.claude/
+agent/
+skills-lock.json

@@ -1,65 +1,219 @@
-/* OmiMind Design System & Glassmorphism Theme (v2.1) */
+/* ==========================================================================
+   OMIMIND 3.0 DESIGN SYSTEM & TOKENS
+   Aesthetic: Product-grade Ambient AI Memory & Intelligence
+   Calm, intelligent, precise, trustworthy, modern dark theme.
+   ========================================================================== */
+
+:root {
+  /* Surface Tokens (HSL tailored, high contrast dark theme) */
+  --bg-canvas: #07090e;
+  --bg-surface: #0e131f;
+  --bg-surface-elevated: #151d2e;
+  --bg-surface-overlay: #1c263b;
+
+  /* Border Tokens */
+  --border-subtle: rgba(255, 255, 255, 0.08);
+  --border-prominent: rgba(255, 255, 255, 0.16);
+  --border-focus: #00e5ff;
+
+  /* Typography Colors (WCAG 2.1 AA calibrated) */
+  --text-primary: #f8fafc;
+  --text-secondary: #94a3b8;
+  --text-tertiary: #64748b;
+  --text-accent: #00e5ff;
+
+  /* Semantic State Tokens */
+  --status-live: #10b981;
+  --status-live-glow: rgba(16, 185, 129, 0.25);
+  --status-warning: #f59e0b;
+  --status-danger: #ef4444;
+  --status-agent-active: #6366f1;
+
+  /* Brand Accents */
+  --accent-cyan: #06b6d4;
+  --accent-cyan-light: #38bdf8;
+  --accent-indigo: #6366f1;
+  --accent-purple: #a855f7;
+  --accent-amber: #f59e0b;
+  --accent-emerald: #10b981;
+  --accent-rose: #f43f5e;
+
+  /* Radii Scale */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-full: 9999px;
+
+  /* Elevation Shadows */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 12px 28px -6px rgba(0, 0, 0, 0.6);
+  --shadow-focus: 0 0 0 3px rgba(0, 229, 255, 0.2);
+
+  /* Layout Dimensions */
+  --header-height: 3.5rem;
+  --bottom-nav-height: 4.25rem;
+  --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+  --bottom-nav-total-height: calc(var(--bottom-nav-height) + var(--safe-area-bottom));
+}
+
+/* Base Body Setup */
 body {
-  background-color: #050813;
+  background-color: var(--bg-canvas);
+  color: var(--text-primary);
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  min-height: 100dvh;
   background-image: 
-    radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.14) 0px, transparent 50%),
-    radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.10) 0px, transparent 50%),
-    radial-gradient(at 50% 50%, rgba(6, 182, 212, 0.05) 0px, transparent 60%);
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(99, 102, 241, 0.10), transparent),
+    radial-gradient(ellipse 60% 40% at 100% 100%, rgba(6, 182, 212, 0.05), transparent);
+  background-attachment: fixed;
+  overflow-x: hidden;
 }
 
-.glass-card {
-  background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s ease, border-color 0.2s ease;
+/* View Container - Strict Mobile Bottom Nav Occlusion Fix */
+.view-container {
+  animation: view-fade 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  padding-block-end: 3rem;
 }
 
-.glass-card:hover {
-  border-color: rgba(255, 255, 255, 0.14);
+@media (max-width: 768px) {
+  .view-container {
+    padding-block-end: calc(var(--bottom-nav-total-height) + 2rem) !important;
+  }
 }
 
-.glass-card-glow {
-  background: rgba(15, 23, 42, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(59, 130, 246, 0.3);
-  box-shadow: 0 0 25px -5px rgba(59, 130, 246, 0.15);
+/* Refined Typography Standards */
+.font-mono-tech {
+  font-family: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
 }
 
-/* Custom Scrollbars */
-.custom-scrollbar::-webkit-scrollbar {
+/* Surface Hierarchy */
+/* Level 1: Standard Cards */
+.omi-card {
+  background: var(--bg-surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .omi-card:hover {
+    border-color: var(--border-prominent);
+  }
+}
+
+/* Level 2: Elevated Interactive Cards & Active Panels */
+.omi-card-elevated {
+  background: var(--bg-surface-elevated);
+  border: 1px solid var(--border-prominent);
+  box-shadow: var(--shadow-md);
+}
+
+.omi-card-interactive {
+  cursor: pointer;
+  display: block;
+  text-decoration: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .omi-card-interactive:hover {
+    border-color: rgba(6, 182, 212, 0.4);
+    box-shadow: var(--shadow-md), 0 0 16px -4px rgba(6, 182, 212, 0.12);
+  }
+}
+
+/* Level 3: Overlays & Modals */
+.omi-surface-overlay {
+  background: var(--bg-surface-overlay);
+  border: 1px solid var(--border-prominent);
+  box-shadow: var(--shadow-lg);
+}
+
+/* Single-Line Horizontal Filter Rail (Prevents 3-row mobile wrapping) */
+.omi-filter-rail {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  -webkit-overflow-scrolling: touch;
+  gap: 0.5rem;
+  padding-block: 0.25rem;
+}
+
+.omi-filter-rail::-webkit-scrollbar {
+  display: none;
+}
+
+/* Strict 44px Mobile Touch Target Enforcement */
+.touch-target-44 {
+  min-inline-size: 44px;
+  min-block-size: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Clean Custom Scrollbars */
+::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
-.custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.5);
-  border-radius: 4px;
+::-webkit-scrollbar-track {
+  background: rgba(10, 15, 26, 0.5);
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(59, 130, 246, 0.3);
-  border-radius: 4px;
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: var(--radius-full);
 }
 
-.custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(59, 130, 246, 0.5);
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.4);
 }
 
-/* Tactile button micro-interactions */
-button:active {
-  transform: scale(0.985);
+/* Subtle, Tactile Interactions (150ms Micro-Interactions) */
+button, .btn-press {
+  transition: transform 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 0.15s cubic-bezier(0.16, 1, 0.3, 1),
+              color 0.15s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.toast {
-  animation: toast-slide 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+button:active, .btn-press:active {
+  transform: scale(0.98);
 }
 
-@keyframes toast-slide {
+/* Focus Ring Accessibility */
+button:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+a:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
+}
+
+/* Toast Component */
+.toast-entry {
+  animation: toast-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.toast-exit {
+  animation: toast-out 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes toast-in {
   from {
     opacity: 0;
-    transform: translateY(12px) scale(0.95);
+    transform: translateY(8px) scale(0.97);
   }
   to {
     opacity: 1;
@@ -67,12 +221,68 @@ button:active {
   }
 }
 
-/* Micro animations */
-.pulse-slow {
-  animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+@keyframes toast-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(6px) scale(0.97);
+  }
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.5; }
+@keyframes view-fade {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Pulse / Live Glow Animations */
+.live-indicator {
+  position: relative;
+}
+
+.live-indicator::after {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: var(--radius-full);
+  background: currentColor;
+  opacity: 0.35;
+  animation: ping-gentle 2.2s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes ping-gentle {
+  0% { transform: scale(1); opacity: 0.35; }
+  50% { transform: scale(1.6); opacity: 0; }
+  100% { transform: scale(1.6); opacity: 0; }
+}
+
+/* Ambient Waveform Canvas */
+#ambient-waveform {
+  background: rgba(10, 15, 26, 0.85);
+  border-radius: var(--radius-md);
+}
+
+/* Responsive Shell Adjustments */
+@media (max-width: 768px) {
+  .omi-card {
+    border-radius: var(--radius-md);
+  }
+}
+
+/* Strict Reduced Motion Preference */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

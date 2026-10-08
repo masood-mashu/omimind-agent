@@ -339,3 +339,39 @@ class TestApiEndpoints:
         # Exactly 2 new points should have been indexed, not 4
         assert final_count == initial_count + 2
 
+    def test_get_meeting_detail(self, client):
+        resp = client.get("/api/meetings/q4_strategy")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["id"] == "q4_strategy"
+        assert "lines" in data
+        assert len(data["lines"]) > 0
+
+        resp_404 = client.get("/api/meetings/invalid_id_xyz")
+        assert resp_404.status_code == 404
+
+    def test_get_recent_memories(self, client):
+        resp = client.get("/api/memories?limit=5")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "memories" in data
+        assert "count" in data
+        assert isinstance(data["memories"], list)
+
+    def test_get_all_actions(self, client):
+        resp = client.get("/api/actions")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "actions" in data
+        assert "count" in data
+
+    def test_api_ask_endpoint(self, client):
+        payload = {"question": "What is our Q4 compute budget?", "limit": 3}
+        resp = client.post("/api/ask", json=payload)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "answer" in data
+        assert "matches" in data
+        assert "relevance_top" in data
+        assert "grounded_count" in data
+

@@ -1,287 +1,217 @@
 /**
- * app.js - Main Client Controller for OmiMind (v2.2)
- * Ambient Audio Canvas Waveform + Observable Qdrant/Lyzr Stream Controller
- * Modern event delegation without window.* global scope pollution.
+ * app.js - Main Application Bootstrapper for OmiMind 2.0
+ * Initializes state, navigation, audio engine, ambient waveform, and routing.
  */
+
 import * as api from './api.js';
-import * as ui from './ui.js';
+import { getState, setState, addPipelineEvent } from './state.js';
+import { initNav } from './components/nav.js';
+import { initRouter, navigate } from './router.js';
+import { initWaveform } from './components/waveform.js';
 import { setupVoiceCapture } from './audio.js';
+import { showToast } from './components/toast.js';
+import { openModal, closeModal } from './components/modal.js';
 
-let activeMeetingId = 'q4_strategy';
 let voiceEngine = null;
-let searchDebounceTimer = null;
-let isAudioActive = false;
+let stopWaveform = null;
 
-function selectMeeting(id) {
-  activeMeetingId = id;
-  ui.updateMeetingButtons(id);
-  ui.showToast(`Selected: ${id.replace('_', ' ').toUpperCase()}`);
-}
+async function bootstrap() {
+  initNav();
 
-async function runStreamingPipeline(endpoint, body) {
-  ui.showPipelinePanel();
-  const btn = document.getElementById('btn-process');
-  if (btn) { btn.innerText = 'Running Qdrant → Lyzr pipeline...'; btn.disabled = true; }
-  isAudioActive = true;
-
+  // Load initial backend data in parallel
   try {
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const [health, meetingsData, memoriesData, actionsData] = await Promise.allSettled([
+      api.fetchHealth(),
+      api.fetchMeetings(),
+      api.fetchMemories(30),
+      api.fetchActions(),
+    ]);
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = '';
+    const updates = {};
+    if (health.status === 'fulfilled') updates.health = health.value;
+    if (meetingsData.status === 'fulfilled') updates.meetings = meetingsData.value.meetings || [];
+    if (memoriesData.status === 'fulfilled') updates.memories = memoriesData.value.memories || [];
+    if (actionsData.status === 'fulfilled') updates.actions = actionsData.value.actions || [];
 
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const parts = buffer.split('\n\n');
-      buffer = parts.pop();
-      for (const part of parts) {
-        const line = part.trim();
-        if (!line.startsWith('data: ')) continue;
-        try {
-          const event = JSON.parse(line.slice(6));
-          if (event.type === 'complete') {
-            ui.renderDossier(event.dossier);
-            const badge = document.getElementById('qdrant-points-badge');
-            if (badge) badge.innerText = `${event.dossier.indexed_vectors_count} Vectors`;
-            ui.showToast('Qdrant → Lyzr pipeline complete');
-          } else if (event.type === 'error') {
-            ui.updatePipelineError(event);
-            ui.showToast(event.message || 'Pipeline processing failed', 'warning');
-          } else {
-            ui.updatePipelineAgent(event);
-          }
-        } catch (_) {}
+    setState(updates);
+  } catch (err) {
+    console.warn('Initial data load error:', err);
+  }
+
+  // Setup Audio Engine
+  voiceEngine = setupVoiceCapture({
+    onTranscript: (text) => {
+      const input = document.getElementById('modal-voice-input') || document.getElementById('live-voice-input');
+      if (input) {
+        input.value = text;
+        input.scrollTop = input.scrollHeight;
       }
-    }
-  } catch (e) {
-    console.error('Streaming pipeline failed', e);
-    ui.showToast('Processing error: ' + e.message, 'warning');
-  } finally {
-    if (btn) { btn.innerText = 'Ingest & Run Pipeline'; btn.disabled = false; }
-    setTimeout(() => { isAudioActive = false; }, 1000);
-  }
-}
+    },
+    onStatus: (status) => {
+      const isListening = status.includes('Listening');
+      setState({ isRecording: isListening });
 
-async function processActiveMeeting() {
-  await runStreamingPipeline('/api/process-stream', { meeting_id: activeMeetingId });
-}
+      // Update mic button texts across DOM
+      const homeMicText = document.getElementById('home-mic-text');
+      if (homeMicText) homeMicText.innerText = isListening ? 'Stop Recording' : 'Record Voice';
 
-async function submitCustomVoice() {
-  const input = document.getElementById('live-voice-input');
-  const text = input ? input.value.trim() : '';
-  if (!text) return ui.showToast('Please speak or enter text first.', 'warning');
-  await runStreamingPipeline('/api/custom-voice-stream', { transcript: text, speaker: 'Voice Input' });
-}
-
-async function searchMemory() {
-  const input = document.getElementById('query-input');
-  const q = input ? input.value.trim() : '';
-  if (!q) return;
-  try {
-    const res = await api.queryMemory(q);
-    ui.renderQueryResult(res);
-  } catch (e) {
-    console.error('Search failed', e);
-  }
-}
-
-async function toggleMic() {
-  const statusEl = document.getElementById('mic-status');
-  const btnText = document.getElementById('mic-btn-text');
-  const btn = document.getElementById('btn-mic');
-  const input = document.getElementById('live-voice-input');
-
-  if (!voiceEngine) {
-    voiceEngine = setupVoiceCapture({
-      onTranscript: (t) => {
-        if (input) {
-          input.value = t;
-          input.scrollTop = input.scrollHeight;
-        }
-      },
-      onStatus: (s) => {
-        if (statusEl) statusEl.innerText = s;
-        if (s.includes('Listening')) {
-          if (btnText) btnText.innerText = 'Stop Mic';
-          if (btn) {
-            btn.className = "flex-1 py-2 px-3 rounded-xl border border-rose-500/60 bg-rose-500/20 hover:bg-rose-500/30 text-xs font-medium transition flex items-center justify-center gap-2 text-rose-300 shadow-lg shadow-rose-500/20 animate-pulse";
-          }
-          isAudioActive = true;
-          ui.showToast('Microphone active: Streaming ambient voice...');
+      const topMicBadge = document.getElementById('top-mic-badge');
+      if (topMicBadge) {
+        if (isListening) {
+          topMicBadge.classList.remove('hidden');
         } else {
-          if (btnText) btnText.innerText = 'Record Voice';
-          if (btn) {
-            btn.className = "flex-1 py-2 px-3 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-xs font-medium transition flex items-center justify-center gap-2 text-cyan-300";
-          }
-          isAudioActive = false;
-        }
-      },
-      onError: (err) => {
-        ui.showToast(err.message || 'Microphone error', 'warning');
-      }
-    });
-  }
-
-  await voiceEngine.toggle();
-}
-
-// ─── Ambient Audio Waveform Canvas Animation Loop ─────────────────────────────
-
-function initWaveformCanvas() {
-  const canvas = document.getElementById('ambient-waveform');
-  if (!canvas) return;
-  const ctx = canvas.getContext('2d');
-  let step = 0;
-
-  function draw() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    const width = canvas.width;
-    const height = canvas.height;
-    const mid = height / 2;
-
-    let baseAmp = isAudioActive ? 12 : 2.5;
-
-    // React in real-time to microphone volume frequencies if available
-    if (voiceEngine && voiceEngine.getAudioFrequencyData) {
-      const freq = voiceEngine.getAudioFrequencyData();
-      if (freq && freq.length > 0) {
-        let sum = 0;
-        for (let i = 0; i < freq.length; i++) sum += freq[i];
-        const avg = sum / freq.length;
-        if (avg > 2) {
-          baseAmp = Math.max(baseAmp, avg * 0.35);
+          topMicBadge.classList.add('hidden');
         }
       }
-    }
-
-    const speed = isAudioActive ? 0.08 : 0.02;
-    step += speed;
-
-    // Draw background subtle grid lines
-    ctx.strokeStyle = 'rgba(30, 41, 59, 0.4)';
-    ctx.lineWidth = 1;
-    ctx.beginPath();
-    ctx.moveTo(0, mid);
-    ctx.lineTo(width, mid);
-    ctx.stroke();
-
-    // Primary cyan wave
-    ctx.beginPath();
-    ctx.strokeStyle = isAudioActive ? '#06b6d4' : '#38bdf888';
-    ctx.lineWidth = isAudioActive ? 2 : 1.2;
-
-    for (let x = 0; x < width; x++) {
-      const y = mid + Math.sin(x * 0.04 + step) * baseAmp * Math.sin(x * 0.01 + step * 0.5);
-      if (x === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    }
-    ctx.stroke();
-
-    // Secondary purple harmonics
-    if (isAudioActive) {
-      ctx.beginPath();
-      ctx.strokeStyle = 'rgba(168, 85, 247, 0.6)';
-      ctx.lineWidth = 1.5;
-      for (let x = 0; x < width; x++) {
-        const y = mid + Math.cos(x * 0.05 - step) * (baseAmp * 0.7);
-        if (x === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-      ctx.stroke();
-    }
-
-    requestAnimationFrame(draw);
-  }
-
-  requestAnimationFrame(draw);
-}
-
-// ─── Modern Event Delegation Initialization ───────────────────────────────────
-
-document.addEventListener('DOMContentLoaded', () => {
-  // Delegated Click Handlers
-  document.addEventListener('click', (e) => {
-    // 1. Tab Navigation
-    const tabBtn = e.target.closest('[data-tab]');
-    if (tabBtn) {
-      const tabId = tabBtn.getAttribute('data-tab');
-      if (tabId) ui.switchTab(tabId);
-      return;
-    }
-
-    // 2. Preset Meeting Selection
-    const meetingBtn = e.target.closest('[data-meeting-id]');
-    if (meetingBtn) {
-      const meetingId = meetingBtn.getAttribute('data-meeting-id');
-      if (meetingId) selectMeeting(meetingId);
-      return;
-    }
-
-    // 3. Action Buttons
-    const actionBtn = e.target.closest('[data-action]');
-    if (actionBtn) {
-      const action = actionBtn.getAttribute('data-action');
-      switch (action) {
-        case 'process-meeting':
-          processActiveMeeting();
-          break;
-        case 'toggle-mic':
-          toggleMic();
-          break;
-        case 'submit-voice':
-          submitCustomVoice();
-          break;
-        case 'search-memory':
-          searchMemory();
-          break;
-        case 'open-gmail':
-          ui.openGmailCompose();
-          break;
-        case 'open-mailto':
-          ui.openMailto();
-          break;
-        case 'copy-email':
-          ui.copyEmailText();
-          break;
-        case 'copy-jira':
-          ui.copyJiraText();
-          break;
-        case 'download-ics': {
-          const idx = actionBtn.getAttribute('data-ics-index');
-          if (idx !== null && idx !== undefined) {
-            ui.downloadICS(parseInt(idx, 10));
-          }
-          break;
-        }
-      }
+    },
+    onError: (err) => {
+      showToast(err.message || 'Microphone error', 'warning');
     }
   });
 
-  // Search Input Listeners (Keyboard + Live Debounce)
-  const queryInput = document.getElementById('query-input');
-  if (queryInput) {
-    queryInput.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter') {
-        clearTimeout(searchDebounceTimer);
-        searchMemory();
-      }
-    });
+  // Setup Global Ambient Waveform
+  stopWaveform = initWaveform(
+    'ambient-waveform',
+    () => voiceEngine?.getAudioFrequencyData?.(),
+    () => getState().isRecording
+  );
 
-    queryInput.addEventListener('input', () => {
-      clearTimeout(searchDebounceTimer);
-      searchDebounceTimer = setTimeout(() => {
-        searchMemory();
-      }, 400);
+  // Global event delegation for Mic triggers and Quick Voice Memo
+  document.addEventListener('click', async (e) => {
+    // 1. Mic Toggle button
+    const micBtn = e.target.closest('#btn-home-mic, #btn-top-mic, #btn-mic');
+    if (micBtn) {
+      e.preventDefault();
+      if (!getState().isRecording) {
+        // Open live voice recording modal
+        openVoiceCaptureModal();
+      }
+      await voiceEngine.toggle();
+      return;
+    }
+
+    // 2. Refresh Waveform canvas if user navigated to Home
+    if (e.target.closest('[data-route="home"], [data-mobile-route="home"]')) {
+      setTimeout(() => {
+        if (stopWaveform) stopWaveform();
+        stopWaveform = initWaveform(
+          'ambient-waveform',
+          () => voiceEngine?.getAudioFrequencyData?.(),
+          () => getState().isRecording
+        );
+      }, 100);
+    }
+  });
+
+  // Global Ctrl/Cmd + K shortcut for instant ambient memory recall
+  window.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+      e.preventDefault();
+      if (!window.location.hash.startsWith('#ask')) {
+        navigate('ask');
+      }
+      setTimeout(() => {
+        const askInput = document.getElementById('ask-input') || document.getElementById('home-ask-input');
+        if (askInput) {
+          askInput.focus();
+          askInput.select?.();
+        }
+      }, 50);
+    }
+  });
+
+  // Start client router
+  initRouter();
+}
+
+function openVoiceCaptureModal() {
+  openModal({
+    title: 'Live Omi Voice Capture',
+    subtitle: 'Speak into your microphone or enter voice memo transcript to index into Qdrant.',
+    contentHtml: `
+      <div class="space-y-4">
+        <div class="flex items-center justify-between text-xs font-mono-tech">
+          <span class="text-cyan-300 flex items-center gap-2">
+            <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
+            Listening (Web Speech API active)...
+          </span>
+          <span class="text-slate-400">Speaker: User</span>
+        </div>
+        <textarea 
+          id="modal-voice-input" 
+          rows="4" 
+          placeholder="Speak or type: 'My live Omi verification phrase is Aurora 4821 and I will finalize the sprint deliverables by Friday...'"
+          class="w-full p-3.5 rounded-xl bg-slate-900 border border-white/10 text-xs font-mono-tech text-white focus:outline-none focus:border-cyan-500 custom-scrollbar resize-none"
+        ></textarea>
+        <div class="p-3 rounded-lg bg-slate-950 border border-white/5 text-[11px] font-mono-tech text-slate-400">
+          Utterances will be embedded into Qdrant collection <code class="text-cyan-300">omi_ambient_memory</code> and synthesized via Lyzr multi-agent swarm.
+        </div>
+      </div>
+    `,
+    actionsHtml: `
+      <button id="modal-voice-cancel" class="px-3.5 py-2 rounded-xl text-xs text-slate-400 hover:text-white transition">
+        Cancel
+      </button>
+      <button id="modal-voice-stream" class="px-4 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 text-white font-semibold text-xs shadow-md transition flex items-center gap-1.5">
+        <span>Vectorize & Run Swarm</span>
+      </button>
+    `
+  });
+
+  const cancelBtn = document.getElementById('modal-voice-cancel');
+  if (cancelBtn) {
+    cancelBtn.addEventListener('click', () => {
+      if (getState().isRecording) voiceEngine.toggle();
+      closeModal();
     });
   }
 
-  initWaveformCanvas();
-});
+  const streamBtn = document.getElementById('modal-voice-stream');
+  if (streamBtn) {
+    streamBtn.addEventListener('click', async () => {
+      const input = document.getElementById('modal-voice-input');
+      const text = input ? input.value.trim() : '';
+      if (!text) {
+        showToast('Please speak or type a transcript first.', 'warning');
+        return;
+      }
+
+      if (getState().isRecording) {
+        await voiceEngine.toggle();
+      }
+
+      streamBtn.disabled = true;
+      streamBtn.innerText = 'Streaming to Qdrant...';
+
+      try {
+        await api.streamPipeline('/api/custom-voice-stream', {
+          transcript: text,
+          speaker: 'Voice Input',
+          title: 'Live Ambient Sync'
+        }, {
+          onEvent: (event) => {
+            addPipelineEvent(event);
+          },
+          onError: (err) => {
+            showToast('Voice streaming error: ' + err.message, 'warning');
+          },
+          onComplete: async (dossier) => {
+            setState({ activeDossier: dossier });
+            showToast('Voice memo vectorized and indexed into Qdrant!');
+            closeModal();
+            // Refresh memories
+            const memData = await api.fetchMemories(30);
+            setState({ memories: memData.memories || [] });
+          }
+        });
+      } catch (err) {
+        showToast('Submission error: ' + err.message, 'warning');
+      } finally {
+        streamBtn.disabled = false;
+      }
+    });
+  }
+}
+
+// Start application when DOM is ready
+document.addEventListener('DOMContentLoaded', bootstrap);

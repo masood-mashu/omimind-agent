@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 
 from backend.mock_data import DEMO_MEETINGS
 from backend.schemas.api_models import QueryRequest
-from backend.shared import orchestrator
+from backend.shared import orchestrator, processed_cache
 
 logger = logging.getLogger(__name__)
 router = APIRouter(tags=["Memory & Recall"])
@@ -26,9 +26,112 @@ def get_meetings():
             "category": m["category"],
             "duration": m["duration"],
             "participants": m["participants"],
-            "turns_count": len(m["lines"])
+            "turns_count": len(m["lines"]),
+            "processed": m["id"] in processed_cache,
         })
     return {"meetings": meetings_list}
+
+
+@router.get("/api/meetings/{meeting_id}")
+def get_meeting_detail(meeting_id: str):
+    """Retrieve full meeting details including transcript lines and any cached dossier."""
+    if meeting_id not in DEMO_MEETINGS:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    m = DEMO_MEETINGS[meeting_id]
+    cached = processed_cache.get(meeting_id)
+    return {
+        "id": m["id"],
+        "title": m["title"],
+        "category": m["category"],
+        "duration": m["duration"],
+        "participants": m["participants"],
+        "lines": m.get("lines", []),
+        "processed": cached is not None,
+        "dossier": cached,
+    }
+
+
+@router.get("/api/memories")
+def get_recent_memories(limit: int = 30, uid: str | None = None):
+    """List recent memories stored in Qdrant ambient memory."""
+    memories = orchestrator.memory.get_recent_memories(limit=min(100, max(1, limit)), uid=uid)
+    return {"memories": memories, "count": len(memories)}
+
+
+@router.get("/api/actions")
+def get_all_actions():
+    """Retrieve all extracted action items across processed meetings."""
+    actions = []
+    for m_id, dossier in processed_cache.items():
+        if isinstance(dossier, dict) and "action_items" in dossier:
+            for item in dossier.get("action_items", []):
+                act = dict(item)
+                act["source_meeting"] = dossier.get("title", m_id)
+                act["session_id"] = m_id
+                actions.append(act)
+    return {"actions": actions, "count": len(actions)}
+
+
+@router.post("/api/ask")
+def ask_memory_endpoint(req: QueryRequest):
+    """
+    Public conversational Ask endpoint for frontend:
+    Retrieves grounded memories from Qdrant and synthesizes answers via Lyzr Agent Studio.
+    """
+    question = req.question.strip()
+    if not question:
+        raise HTTPException(status_code=400, detail="Question cannot be empty")
+
+    stats = orchestrator.memory.get_stats()
+    if stats.get("embedding_health", {}).get("status") != "ready":
+        return JSONResponse(
+            status_code=503,
+            content={
+                "success": False,
+                "error": {
+                    "code": "EMBEDDING_SERVICE_DEGRADED",
+                    "message": "Semantic memory search is temporarily unavailable.",
+                    "status_code": 503,
+                },
+                "detail": "Semantic embedding provider unavailable",
+            },
+        )
+
+    try:
+        recall_res = orchestrator.query_semantic_memory(query=question, limit=req.limit, uid=req.uid)
+    except Exception as exc:
+        logger.error(f"Ask query error: {exc}")
+        return JSONResponse(
+            status_code=503,
+            content={
+                "success": False,
+                "error": {
+                    "code": "RETRIEVAL_FAILED",
+                    "message": "Failed to retrieve memories from vector database.",
+                    "status_code": 503,
+                },
+                "detail": "Vector retrieval failed",
+            },
+        )
+
+    matches = recall_res.get("matches", [])
+    lyzr_result = orchestrator.lyzr.reason(uid=req.uid, question=question, context=matches)
+
+    if lyzr_result.text and lyzr_result.text.strip():
+        final_answer = lyzr_result.text.strip()
+    else:
+        final_answer = recall_res.get("answer", "No direct conversational records found in Qdrant.")
+
+    return {
+        "question": question,
+        "answer": final_answer,
+        "source": lyzr_result.provider,
+        "agent_id": lyzr_result.agent_id or "6ac2646b367124ed07f49bdd",
+        "matches": matches,
+        "relevance_top": recall_res.get("relevance_top", 0.0),
+        "reasoning_error": lyzr_result.error,
+        "grounded_count": len(matches),
+    }
 
 
 @router.post("/api/seed")
