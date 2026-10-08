@@ -282,7 +282,7 @@ For a reliable demo, use synthetic content:
 7. Review generated actions and calendar drafts.
 8. Delete the test session and confirm the memory is no longer retrievable.
 
-See [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) for the longer walkthrough. A public deployment should only be advertised after verifying that it runs the same commit as this repository and that its secrets and persistent Qdrant configuration are present.
+A public deployment should only be advertised after verifying that it runs the same commit as this repository and that its secrets and persistent Qdrant configuration are present.
 
 ## Optional MCP server
 
@@ -369,8 +369,6 @@ Do not update the test or coverage badges with a new number unless the result wa
 - [`docs/DATA_FLOW.md`](docs/DATA_FLOW.md) — transcript, memory, and output lifecycle.
 - [`docs/EXECUTION_FLOW.md`](docs/EXECUTION_FLOW.md) — processing flow.
 - [`docs/SEQUENCE_DIAGRAM.md`](docs/SEQUENCE_DIAGRAM.md) — chronological request sequence.
-- [`docs/DEMO_SCRIPT.md`](docs/DEMO_SCRIPT.md) — demo preparation and walkthrough.
-- [`docs/TRACK_1_ANALYSIS.md`](docs/TRACK_1_ANALYSIS.md) — Track 1 mapping.
 - [`Hackathon-Submission-Guide.pdf`](Hackathon-Submission-Guide.pdf) — submission requirements.
 
 ## Contributing
