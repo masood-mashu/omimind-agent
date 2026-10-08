@@ -49,6 +49,10 @@ class FastEmbedEmbedding(BaseEmbeddingModel):
                 return candidate, True
 
         if self.cache_dir:
+            try:
+                os.makedirs(self.cache_dir, exist_ok=True)
+            except OSError:
+                pass
             return self.cache_dir, False
 
         if is_serverless:

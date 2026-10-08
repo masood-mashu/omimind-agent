@@ -167,13 +167,14 @@ class TestQdrantMemoryAgent:
         assert "embedding_health" in stats
         assert stats["embedding_health"]["status"] in ("ready", "degraded")
 
-    def test_fastembed_cache_dir_and_dimensions(self):
+    def test_fastembed_cache_dir_and_dimensions(self, tmp_path):
         import os
 
         from agents.memory_agent import FastEmbedEmbedding
 
-        # Verify bundled cache resolution
-        embedder = FastEmbedEmbedding(cache_dir="fastembed_cache")
+        # Verify cache resolution and directory creation
+        cache_dir = str(tmp_path / "fastembed_cache")
+        embedder = FastEmbedEmbedding(cache_dir=cache_dir)
         cache_path, _ = embedder._resolve_cache_dir()
         assert cache_path is not None
         assert os.path.isdir(cache_path)
