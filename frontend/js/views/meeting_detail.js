@@ -116,7 +116,7 @@ function renderContent(container, meeting) {
           ⏱ ${escapeHtml(meeting.duration || 'Session')}
         </span>
         <span class="px-3 py-1 rounded-xl bg-slate-900 border border-white/5">
-          👥 ${meeting.participants ? meeting.participants.length : 0} Attendees: ${meeting.participants ? meeting.participants.join(', ') : ''}
+          👥 ${meeting.participants ? meeting.participants.length : 0} Attendees: ${meeting.participants && meeting.participants.length > 0 ? meeting.participants.map(escapeHtml).join(', ') : ''}
         </span>
         <span class="px-3 py-1 rounded-xl bg-slate-900 border border-white/5">
           💬 ${transcriptLines.length} utterances

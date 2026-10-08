@@ -308,14 +308,22 @@ class TestApiEndpoints:
         )
 
         # Query memory as Bob
-        resp_bob = client.post("/api/query", json={"question": "What is the secret project code?", "uid": "user_bob_88"})
+        resp_bob = client.post(
+            "/api/query",
+            json={"question": "What is the secret project code?", "uid": "user_bob_88"},
+            headers={"x-api-key": "test-secret:user_bob_88"},
+        )
         assert resp_bob.status_code == 200
         data_bob = resp_bob.json()
         assert len(data_bob["matches"]) == 0
         assert "Chimera 99" not in data_bob["answer"]
 
         # Query memory as Alice
-        resp_alice = client.post("/api/query", json={"question": "What is the secret project code?", "uid": "user_alice_99"})
+        resp_alice = client.post(
+            "/api/query",
+            json={"question": "What is the secret project code?", "uid": "user_alice_99"},
+            headers={"x-api-key": "test-secret:user_alice_99"},
+        )
         assert resp_alice.status_code == 200
         data_alice = resp_alice.json()
         assert len(data_alice["matches"]) > 0

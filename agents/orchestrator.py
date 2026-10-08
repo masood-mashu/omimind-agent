@@ -27,28 +27,30 @@ class OmiMindOrchestrator:
         title: str,
         transcript_lines: list[dict[str, str]],
         uid: str = "default_user",
+        index_memory: bool = True,
     ) -> dict[str, Any]:
         """
         Ingests a complete meeting/lecture session:
-        1. Embeds each line into Qdrant vector memory with metadata payloads.
+        1. Embeds each line into Qdrant vector memory (if index_memory is True).
         2. Extracts commitments and action items.
         3. Generates executive synthesis.
         4. Dispatches follow-up emails and Jira tickets.
         5. Extracts calendar sync commitments and generates Google Meet/iCal links.
         """
         indexed_points = []
-        for i, line in enumerate(transcript_lines):
-            p_id = self.memory.index_utterance(
-                session_id=session_id,
-                speaker=line.get("speaker", "Speaker"),
-                text=line.get("text", ""),
-                timestamp=float(i * 15),
-                timestamp_str=line.get("timestamp_str", f"00:{i*15:02d}"),
-                topic=line.get("topic", "general"),
-                urgency=line.get("urgency", "normal"),
-                uid=uid,
-            )
-            indexed_points.append(p_id)
+        if index_memory:
+            for i, line in enumerate(transcript_lines):
+                p_id = self.memory.index_utterance(
+                    session_id=session_id,
+                    speaker=line.get("speaker", "Speaker"),
+                    text=line.get("text", ""),
+                    timestamp=float(i * 15),
+                    timestamp_str=line.get("timestamp_str", f"00:{i*15:02d}"),
+                    topic=line.get("topic", "general"),
+                    urgency=line.get("urgency", "normal"),
+                    uid=uid,
+                )
+                indexed_points.append(p_id)
 
         context = self.memory.search_memory(
             query=f"Summarize the meeting and extract decisions, risks, and action items for {title}",
@@ -56,7 +58,7 @@ class OmiMindOrchestrator:
             uid=uid,
         )
         lyzr_result = self.lyzr.reason(
-            uid=session_id,
+            uid=uid,
             question="Produce grounded meeting intelligence from the supplied transcript context.",
             context=context,
         )

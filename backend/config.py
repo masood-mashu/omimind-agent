@@ -66,17 +66,25 @@ class Settings(BaseModel):
     )
     omi_webhook_secret: str | None = Field(default=None, description="Secret supported by the configured Omi webhook")
 
-    # API Security (Optional Token / Bearer Protection)
+    # Identity & Authorization
+    default_user_id: str = Field(
+        default="default_user",
+        description="Configured server-side user identity for single-user deployment"
+    )
+
+    # API Security (Token / Bearer Protection)
     api_secret_key: str | None = Field(
         default=None,
-        description="Optional API secret key for endpoint protection. If None, runs in open demo mode."
+        description="API secret key for endpoint protection."
     )
 
     def __init__(self, **data):
         super().__init__(**data)
         env_mappings = {
+            "environment": "ENVIRONMENT",
             "qdrant_url": "QDRANT_URL",
             "qdrant_api_key": "QDRANT_API_KEY",
+            "collection_name": "COLLECTION_NAME",
             "lyzr_api_key": "LYZR_API_KEY",
             "lyzr_agent_id": "LYZR_AGENT_ID",
             "lyzr_manager_agent_id": "LYZR_MANAGER_AGENT_ID",
@@ -84,6 +92,7 @@ class Settings(BaseModel):
             "api_secret_key": "API_SECRET_KEY",
             "omi_api_key": "OMI_API_KEY",
             "omi_webhook_secret": "OMI_WEBHOOK_SECRET",
+            "default_user_id": "DEFAULT_USER_ID",
         }
         for attr, env_var in env_mappings.items():
             if attr not in data and env_var in os.environ:
@@ -95,6 +104,31 @@ class Settings(BaseModel):
             except ValueError:
                 pass
 
+
+def is_testing() -> bool:
+    import sys
+    return "pytest" in sys.modules or "PYTEST_CURRENT_TEST" in os.environ or os.environ.get("ENVIRONMENT") == "test"
+
+
+def validate_production_config(cfg: Settings | None = None) -> None:
+    """
+    Validates required configuration in production environment.
+    Fails clearly when persistence, API authentication, Qdrant, or webhook secrets are missing.
+    """
+    active_cfg = cfg or settings
+    if active_cfg.environment.lower() == "production" and not is_testing():
+        missing: list[str] = []
+        if not active_cfg.api_secret_key:
+            missing.append("API_SECRET_KEY")
+        if not active_cfg.qdrant_url:
+            missing.append("QDRANT_URL")
+        if not active_cfg.omi_webhook_secret:
+            missing.append("OMI_WEBHOOK_SECRET")
+        if missing:
+            raise RuntimeError(
+                f"Missing required production configuration: {', '.join(missing)}. "
+                "Production mode requires persistent Qdrant, API authentication, and Omi webhook secrets."
+            )
 
 # Singleton instance
 settings = Settings()

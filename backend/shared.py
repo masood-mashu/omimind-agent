@@ -12,6 +12,25 @@ orchestrator = OmiMindOrchestrator(storage_path="./qdrant_storage")
 
 # Active processed sessions cache
 processed_cache: dict[str, Any] = {}
+processed_cache_owners: dict[str, str] = {}
+
+
+def cache_processed(session_id: str, dossier: dict[str, Any], uid: str) -> None:
+    processed_cache[session_id] = dossier
+    processed_cache_owners[session_id] = uid
+
+
+def get_processed_for_user(session_id: str, uid: str) -> dict[str, Any] | None:
+    if processed_cache_owners.get(session_id) != uid:
+        return None
+    dossier = processed_cache.get(session_id)
+    return dossier if isinstance(dossier, dict) else None
+
+
+def iter_processed_for_user(uid: str):
+    for session_id, dossier in processed_cache.items():
+        if processed_cache_owners.get(session_id) == uid and isinstance(dossier, dict):
+            yield session_id, dossier
 
 
 def parse_transcript(transcript: str, default_speaker: str = "User") -> tuple[list[dict], set]:

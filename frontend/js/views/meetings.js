@@ -100,7 +100,7 @@ function renderMeetingCards(meetings, activeDossier) {
               ${escapeHtml(m.title)}
             </h2>
             <p class="text-xs text-slate-300 mt-1 line-clamp-1">
-              ${m.participants ? m.participants.join(', ') : 'Participants'}
+              ${m.participants && m.participants.length > 0 ? m.participants.map(escapeHtml).join(', ') : 'Participants'}
             </p>
           </div>
 

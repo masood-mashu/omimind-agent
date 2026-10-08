@@ -4,19 +4,20 @@ import uuid
 from collections.abc import AsyncGenerator
 from typing import Any
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from backend.auth import AuthenticatedUser, get_current_user
 from backend.mock_data import DEMO_MEETINGS
 from backend.schemas.api_models import CustomVoiceRequest, ProcessRequest
-from backend.shared import orchestrator, parse_transcript, processed_cache
+from backend.shared import cache_processed, orchestrator, parse_transcript
 
 logger = logging.getLogger("omimind.pipeline")
 router = APIRouter(tags=["pipeline"])
 
 
 @router.post("/api/process")
-def process_meeting(req: ProcessRequest):
+def process_meeting(req: ProcessRequest, user: AuthenticatedUser = Depends(get_current_user)):
     if req.meeting_id not in DEMO_MEETINGS:
         raise HTTPException(status_code=404, detail="Meeting not found")
 
@@ -44,8 +45,10 @@ def process_meeting(req: ProcessRequest):
             session_id=session_id,
             title=title,
             transcript_lines=transcript_lines,
+            uid=user.uid,
+            index_memory=True,
         )
-        processed_cache[session_id] = dossier
+        cache_processed(session_id, dossier, user.uid)
         return dossier
     except Exception as exc:
         logger.error(f"Process meeting error: {exc}")
@@ -115,7 +118,7 @@ async def _stream_pipeline(
             "agent": "MemoryAgent",
             "stage_name": "Qdrant Memory Indexing",
             "status": "done",
-            "message": f"{len(indexed_points)} vectors stored in omi_ambient_memory collection.",
+            "message": f"{len(indexed_points)} vectors stored in {orchestrator.memory.collection_name} collection.",
             "count": len(indexed_points),
         })
 
@@ -141,7 +144,7 @@ async def _stream_pipeline(
             "count": len(retrieved_context),
         })
 
-        # Stage 3: Lyzr Manager Reasoning
+        # Stage 3: Lyzr Manager Reasoning (Non-blocking async call)
         yield sse({
             "stage": 3,
             "agent": "LyzrManager",
@@ -149,8 +152,8 @@ async def _stream_pipeline(
             "status": "running",
             "message": "Invoking Lyzr Manager (dynamic delegation to Meeting Analyst, Action Extractor, Recall Agent)...",
         })
-        lyzr_result = orchestrator.lyzr.reason(
-            uid=session_id,
+        lyzr_result = await orchestrator.lyzr.areason(
+            uid=uid,
             question="Produce grounded meeting intelligence from the supplied transcript context.",
             context=retrieved_context,
         )
@@ -229,7 +232,7 @@ async def _stream_pipeline(
                 "error": lyzr_result.error,
             },
         }
-        processed_cache[session_id] = dossier
+        cache_processed(session_id, dossier, uid)
         yield sse({"type": "complete", "dossier": dossier})
 
     except Exception as exc:
@@ -244,7 +247,7 @@ async def _stream_pipeline(
 
 
 @router.post("/api/process-stream")
-async def process_meeting_stream(req: ProcessRequest):
+async def process_meeting_stream(req: ProcessRequest, user: AuthenticatedUser = Depends(get_current_user)):
     if req.meeting_id not in DEMO_MEETINGS:
         raise HTTPException(status_code=404, detail="Meeting not found")
     meeting = DEMO_MEETINGS[req.meeting_id]
@@ -252,14 +255,14 @@ async def process_meeting_stream(req: ProcessRequest):
     title = str(meeting["title"])
     lines: list[dict] = meeting.get("lines", [])
     return StreamingResponse(
-        _stream_pipeline(session_id, title, lines),
+        _stream_pipeline(session_id, title, lines, uid=user.uid),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
 @router.post("/api/custom-voice-stream")
-async def ingest_custom_voice_stream(req: CustomVoiceRequest):
+async def ingest_custom_voice_stream(req: CustomVoiceRequest, user: AuthenticatedUser = Depends(get_current_user)):
     session_id = f"voice_{uuid.uuid4().hex[:8]}"
     lines, detected_speakers = parse_transcript(req.transcript, req.speaker)
     if not lines:
@@ -268,14 +271,14 @@ async def ingest_custom_voice_stream(req: CustomVoiceRequest):
     if title == "Live Omi Voice Memo" and len(detected_speakers) > 1:
         title = "Multi-Stakeholder Operational Sync"
     return StreamingResponse(
-        _stream_pipeline(session_id, title, lines),
+        _stream_pipeline(session_id, title, lines, uid=user.uid),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
 @router.post("/api/custom-voice")
-def ingest_custom_voice(req: CustomVoiceRequest):
+def ingest_custom_voice(req: CustomVoiceRequest, user: AuthenticatedUser = Depends(get_current_user)):
     session_id = f"voice_{uuid.uuid4().hex[:8]}"
     lines, detected_speakers = parse_transcript(req.transcript, req.speaker)
     if not lines:
@@ -283,6 +286,12 @@ def ingest_custom_voice(req: CustomVoiceRequest):
     title = req.title
     if title == "Live Omi Voice Memo" and len(detected_speakers) > 1:
         title = "Multi-Stakeholder Operational Sync"
-    dossier = orchestrator.process_session(session_id=session_id, title=title, transcript_lines=lines)
-    processed_cache[session_id] = dossier
+    dossier = orchestrator.process_session(
+        session_id=session_id,
+        title=title,
+        transcript_lines=lines,
+        uid=user.uid,
+        index_memory=True,
+    )
+    cache_processed(session_id, dossier, user.uid)
     return dossier

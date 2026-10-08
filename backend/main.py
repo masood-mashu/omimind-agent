@@ -2,17 +2,21 @@
 main.py - Lean FastAPI Application Server for OmiMind Ambient Voice Intelligence.
 Exposes REST and SSE endpoints via modular routers for vector memory, agent synthesis, and frontend UI.
 """
+from __future__ import annotations
+
 import logging
 import os
 import time
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.encoders import jsonable_encoder
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.config import settings
+from backend.config import settings, validate_production_config
 from backend.routers import (
     health_router,
     memory_router,
@@ -33,10 +37,19 @@ from backend.shared import (
 
 logger = logging.getLogger(__name__)
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Validate required production settings at startup
+    validate_production_config()
+    yield
+
+
 app = FastAPI(
     title=settings.app_name,
     description="Voice Intelligence powered by Omi ambient audio, Qdrant vector memory, and Lyzr multi-agent framework.",
     version=settings.app_version,
+    lifespan=lifespan,
 )
 
 # ─── CORS Middleware ─────────────────────────────────────────────────────────
@@ -58,6 +71,7 @@ app.add_middleware(
 
 # ─── Structured Error Handlers ───────────────────────────────────────────────
 
+
 @app.exception_handler(HTTPException)
 async def custom_http_exception_handler(request: Request, exc: HTTPException):
     return JSONResponse(
@@ -77,6 +91,7 @@ async def custom_http_exception_handler(request: Request, exc: HTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = jsonable_encoder(exc.errors())
     return JSONResponse(
         status_code=422,
         content={
@@ -85,10 +100,10 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
                 "code": "VALIDATION_ERROR",
                 "message": "Invalid request payload schema",
                 "status_code": 422,
-                "details": exc.errors(),
+                "details": errors,
                 "timestamp": time.time(),
             },
-            "detail": exc.errors(),
+            "detail": errors,
         },
     )
 
@@ -111,64 +126,51 @@ async def global_exception_handler(request: Request, exc: Exception):
     )
 
 
-# ─── Security & Telemetry Middleware ──────────────────────────────────────────
+# ─── Security, Payload Limits & Telemetry Middleware ──────────────────────────
+
+MAX_REQUEST_BODY_SIZE = 1_000_000  # 1 MB
+FORBIDDEN_QUERY_SECRETS = {"api_key", "key", "token", "secret"}
+
 
 @app.middleware("http")
 async def security_and_telemetry_middleware(request: Request, call_next):
-    protected_paths = {
-        "/api/forget", "/api/memory", "/api/seed",
-        "/api/omi-webhook", "/omi/conversation", "/omi/realtime", "/ask",
-    }
-    if request.url.path in protected_paths:
-        secret = settings.api_secret_key
-        if not secret:
-            return JSONResponse(
-                status_code=503,
-                content={
-                    "success": False,
-                    "error": {
-                        "code": "PROTECTION_NOT_CONFIGURED",
-                        "message": "This endpoint is disabled until API_SECRET_KEY is configured.",
-                        "status_code": 503,
-                        "timestamp": time.time(),
-                    },
-                    "detail": "Protected endpoint unavailable",
-                },
-            )
-        else:
-            x_api_key = request.headers.get("x-api-key")
-            auth_header = request.headers.get("authorization", "")
-            bearer_token = auth_header[7:].strip() if auth_header.startswith("Bearer ") else None
-            omi_token = request.headers.get("x-omi-webhook-secret")
-            token = (
-                x_api_key
-                or bearer_token
-                or omi_token
-                or request.query_params.get("api_key")
-                or request.query_params.get("key")
-                or request.query_params.get("token")
-                or request.query_params.get("secret")
-            )
-            allowed_tokens = {secret}
-            if request.url.path in {"/api/omi-webhook", "/omi/conversation", "/omi/realtime"}:
-                if settings.omi_webhook_secret:
-                    allowed_tokens.add(settings.omi_webhook_secret)
-                if not token:
-                    token = secret
-            if token not in allowed_tokens:
+    # 1. Enforce payload size limit (HTTP 413)
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            if int(content_length) > MAX_REQUEST_BODY_SIZE:
                 return JSONResponse(
-                    status_code=401,
+                    status_code=413,
                     content={
                         "success": False,
                         "error": {
-                            "code": "UNAUTHORIZED",
-                            "message": "Invalid or missing API key. Provide x-api-key or Bearer token.",
-                            "status_code": 401,
+                            "code": "PAYLOAD_TOO_LARGE",
+                            "message": "Request payload exceeds maximum allowed limit of 1MB",
+                            "status_code": 413,
                             "timestamp": time.time(),
                         },
-                        "detail": "Unauthorized",
+                        "detail": "Request payload too large",
                     },
                 )
+        except ValueError:
+            pass
+
+    # 2. Reject query-string credentials (HTTP 401)
+    for q_secret in FORBIDDEN_QUERY_SECRETS:
+        if q_secret in request.query_params:
+            return JSONResponse(
+                status_code=401,
+                content={
+                    "success": False,
+                    "error": {
+                        "code": "UNAUTHORIZED",
+                        "message": "Query-string credentials are not permitted. Provide header credentials only.",
+                        "status_code": 401,
+                        "timestamp": time.time(),
+                    },
+                    "detail": "Query-string credentials are not permitted. Use Authorization: Bearer <token> or X-API-Key header.",
+                },
+            )
 
     start_time = time.time()
     response = await call_next(request)

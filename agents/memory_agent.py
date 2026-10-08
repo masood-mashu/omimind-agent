@@ -6,7 +6,6 @@ Embeddings are delegated to the modular agents.embeddings engine.
 import hashlib
 import os
 import re
-import sys
 from typing import Any
 
 from qdrant_client import QdrantClient
@@ -32,8 +31,10 @@ from agents.embeddings import (
     generate_semantic_embedding,
     get_embedding_provider,
 )
+from backend.config import is_testing, settings
 
-COLLECTION_NAME = "omi_ambient_memory"
+COLLECTION_NAME = settings.collection_name
+
 
 
 class QdrantMemoryAgent:
@@ -48,22 +49,25 @@ class QdrantMemoryAgent:
             or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
             or os.environ.get("LAMBDA_TASK_ROOT")
         )
-        is_testing = "pytest" in sys.modules or "PYTEST_CURRENT_TEST" in os.environ or storage_path == ":memory:"
+        testing_env = is_testing() or storage_path == ":memory:"
 
-        try:
-            from backend.config import settings
-            qdrant_url = settings.qdrant_url if not is_testing else None
-            qdrant_api_key = settings.qdrant_api_key if not is_testing else None
-        except Exception:
-            qdrant_url = os.environ.get("QDRANT_URL") if not is_testing else None
-            qdrant_api_key = os.environ.get("QDRANT_API_KEY") if not is_testing else None
+        qdrant_url = settings.qdrant_url if not testing_env else None
+        qdrant_api_key = settings.qdrant_api_key if not testing_env else None
 
-        allow_ephemeral = is_testing or os.environ.get("ALLOW_EPHEMERAL_MEMORY", "false").lower() == "true"
+        # Never silently fall back from production Qdrant to ephemeral memory
+        allow_ephemeral = testing_env or (
+            settings.environment.lower() != "production"
+            and os.environ.get("ALLOW_EPHEMERAL_MEMORY", "false").lower() == "true"
+        )
         self.storage_path = storage_path
         self.qdrant_url = qdrant_url
+        self.collection_name = settings.collection_name
         self.embedding_model = _ACTIVE_EMBEDDING_MODEL
 
-        if storage_path == ":memory:" or allow_ephemeral:
+        if storage_path == ":memory:":
+            self.client = QdrantClient(":memory:")
+            self.persistence_mode = "in_memory"
+        elif allow_ephemeral and not qdrant_url:
             self.client = QdrantClient(":memory:")
             self.persistence_mode = "in_memory"
         elif qdrant_url:
@@ -75,8 +79,8 @@ class QdrantMemoryAgent:
             except Exception as exc:
                 raise RuntimeError("Unable to connect to configured Qdrant service") from exc
         else:
-            if is_serverless:
-                raise RuntimeError("Persistent Qdrant configuration is required in serverless production")
+            if settings.environment.lower() == "production" or is_serverless:
+                raise RuntimeError("Persistent Qdrant Cloud configuration is required in production mode.")
             self.client = QdrantClient(path=storage_path)
             self.persistence_mode = "local_persistent"
 
@@ -85,24 +89,24 @@ class QdrantMemoryAgent:
     def _ensure_collection(self):
         try:
             collections = self.client.get_collections().collections
-            exists = any(c.name == COLLECTION_NAME for c in collections)
+            exists = any(c.name == self.collection_name for c in collections)
             if exists:
-                info = self.client.get_collection(COLLECTION_NAME)
+                info = self.client.get_collection(self.collection_name)
                 current_dim = getattr(info.config.params.vectors, "size", None)
                 if current_dim and current_dim != VECTOR_DIM:
-                    self.client.delete_collection(COLLECTION_NAME)
+                    self.client.delete_collection(self.collection_name)
                     exists = False
 
             if not exists:
                 self.client.create_collection(
-                    collection_name=COLLECTION_NAME,
+                    collection_name=self.collection_name,
                     vectors_config=VectorParams(size=VECTOR_DIM, distance=Distance.COSINE),
                 )
             if getattr(self, "persistence_mode", None) != "in_memory":
                 for field in ["uid", "session_id", "speaker", "topic"]:
                     try:
                         self.client.create_payload_index(
-                            collection_name=COLLECTION_NAME,
+                            collection_name=self.collection_name,
                             field_name=field,
                             field_schema=PayloadSchemaType.KEYWORD,
                         )
@@ -110,6 +114,7 @@ class QdrantMemoryAgent:
                         pass
         except Exception as exc:
             raise RuntimeError("Unable to initialize the persistent Qdrant collection") from exc
+
 
     def index_utterance(
         self,
@@ -125,7 +130,11 @@ class QdrantMemoryAgent:
         """
         Embeds and stores an audio utterance from Omi into Qdrant vector memory.
         """
-        point_id = int(hashlib.md5(f"{session_id}_{timestamp}_{text[:30]}".encode()).hexdigest()[:8], 16)
+        # Stable, idempotent identity for the full utterance. Including the
+        # tenant and speaker prevents truncation-based collisions while still
+        # allowing safe upserts when a webhook is retried.
+        point_key = f"{uid}\x1f{session_id}\x1f{speaker}\x1f{timestamp}\x1f{text}\x1f{topic}"
+        point_id = int(hashlib.sha256(point_key.encode("utf-8")).hexdigest()[:16], 16)
         vector = generate_semantic_embedding(f"{speaker} {text}")
 
         payload = {
@@ -146,7 +155,7 @@ class QdrantMemoryAgent:
         )
 
         self.client.upsert(
-            collection_name=COLLECTION_NAME,
+            collection_name=self.collection_name,
             points=[point],
         )
         return str(point_id)
@@ -178,7 +187,7 @@ class QdrantMemoryAgent:
 
         candidate_limit = max(40, limit * 10)
         search_results = self.client.query_points(
-            collection_name=COLLECTION_NAME,
+            collection_name=self.collection_name,
             query=query_vector,
             query_filter=query_filter,
             limit=candidate_limit,
@@ -205,6 +214,7 @@ class QdrantMemoryAgent:
             hybrid_score = round((0.60 * norm_cosine) + (0.40 * lexical_ratio), 4)
 
             matches.append({
+                "id": str(hit.id),
                 "score": hybrid_score,
                 "raw_vector_score": round(float(hit.score), 4),
                 "speaker": hit.payload.get("speaker", "Unknown"),
@@ -218,36 +228,84 @@ class QdrantMemoryAgent:
         matches.sort(key=lambda m: m["score"], reverse=True)
         return matches[:limit]
 
-    def delete_memory(self, session_id: str | None = None, point_id: int | str | None = None) -> bool:
-        """
-        Deletes points by point_id or by session_id filter for user privacy control.
-        """
+    def _delete_by_point_id(self, point_id: int | str, uid: str | None) -> bool:
+        p_id = int(point_id) if str(point_id).isdigit() else str(point_id)
         try:
-            if point_id is not None:
-                p_id = int(point_id) if str(point_id).isdigit() else str(point_id)
-                self.client.delete(
-                    collection_name=COLLECTION_NAME,
-                    points_selector=[p_id],
-                )
-                return True
-            if session_id:
-                self.client.delete(
-                    collection_name=COLLECTION_NAME,
-                    points_selector=Filter(
-                        must=[FieldCondition(key="session_id", match=MatchValue(value=session_id))],
-                    ),
-                )
-                return True
+            retrieved = self.client.retrieve(
+                collection_name=self.collection_name,
+                ids=[p_id],
+                with_payload=True,
+            )
+        except Exception:
+            retrieved = []
+        if not retrieved:
+            return False
+        point_uid = (retrieved[0].payload or {}).get("uid")
+        if uid is not None and point_uid != uid:
+            raise PermissionError("Point belongs to another user")
+        try:
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=[p_id],
+            )
+            return True
         except Exception:
             return False
+
+    def _delete_by_session_id(self, session_id: str, uid: str | None) -> bool:
+        try:
+            scroll_res, _ = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=Filter(
+                    must=[FieldCondition(key="session_id", match=MatchValue(value=session_id))]
+                ),
+                limit=10,
+                with_payload=True,
+            )
+        except Exception:
+            scroll_res = []
+        if not scroll_res:
+            return False
+        if uid is not None:
+            user_points = [p for p in scroll_res if (p.payload or {}).get("uid") == uid]
+            if not user_points:
+                raise PermissionError("Session belongs to another user")
+        conditions = [FieldCondition(key="session_id", match=MatchValue(value=session_id))]
+        if uid is not None:
+            conditions.append(FieldCondition(key="uid", match=MatchValue(value=uid)))
+        try:
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=Filter(must=conditions),
+            )
+            return True
+        except Exception:
+            return False
+
+    def delete_memory(
+        self,
+        session_id: str | None = None,
+        point_id: int | str | None = None,
+        uid: str | None = None,
+    ) -> bool:
+        """
+        Deletes points by point_id or by session_id filter for user privacy control.
+        Enforces tenant isolation by verifying ownership against the authenticated UID.
+        Raises PermissionError if target exists but belongs to another user.
+        """
+        if point_id is not None:
+            return self._delete_by_point_id(point_id, uid)
+        if session_id:
+            return self._delete_by_session_id(session_id, uid)
         return False
 
+
     def get_stats(self) -> dict[str, Any]:
-        info = self.client.get_collection(collection_name=COLLECTION_NAME)
+        info = self.client.get_collection(collection_name=self.collection_name)
         provider_name = getattr(self.embedding_model, "provider_name", type(self.embedding_model).__name__)
         health_info = getattr(self.embedding_model, "check_health", lambda: {"status": "ready"})()
         return {
-            "collection": COLLECTION_NAME,
+            "collection": self.collection_name,
             "points_count": info.points_count or 0,
             "vector_dimension": VECTOR_DIM,
             "distance_metric": "Cosine",
@@ -265,13 +323,14 @@ class QdrantMemoryAgent:
             if uid:
                 scroll_filter = Filter(must=[FieldCondition(key="uid", match=MatchValue(value=uid))])
             points, _ = self.client.scroll(
-                collection_name=COLLECTION_NAME,
+                collection_name=self.collection_name,
                 scroll_filter=scroll_filter,
                 limit=limit,
                 with_payload=True,
                 with_vectors=False,
             )
             memories = []
+
             for p in points:
                 payload = p.payload or {}
                 memories.append({
