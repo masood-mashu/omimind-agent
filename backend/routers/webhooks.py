@@ -181,6 +181,34 @@ def _extract_lines_from_payload(payload: Any) -> list[dict[str, str]]:
     return lines
 
 
+def _index_realtime_segments(segments: list[Any], session_id: str, uid: str) -> int:
+    indexed = 0
+    for segment in segments:
+        if not isinstance(segment, dict):
+            raise HTTPException(status_code=422, detail="Each segment must be a JSON object")
+
+        text = str(segment.get("text", "")).strip()
+        if not text:
+            continue
+        try:
+            start_val = float(segment.get("start", 0))
+            if math.isnan(start_val) or math.isinf(start_val) or start_val < 0.0 or start_val > MAX_TIMESTAMP_SECONDS:
+                raise HTTPException(status_code=422, detail="Segment start must be non-negative and valid timestamp")
+        except (TypeError, ValueError) as exc:
+            raise HTTPException(status_code=422, detail="Segment start must be numeric") from exc
+
+        orchestrator.memory.index_utterance(
+            session_id=session_id,
+            speaker=str(segment.get("speaker", "Omi User"))[:MAX_SPEAKER_LENGTH],
+            text=text[:MAX_SEGMENT_TEXT_LENGTH],
+            timestamp=start_val,
+            timestamp_str="live",
+            uid=uid,
+        )
+        indexed += 1
+    return indexed
+
+
 @router.post("/omi/conversation")
 def omi_conversation_webhook(
     background_tasks: BackgroundTasks,
@@ -252,6 +280,21 @@ def omi_conversation_webhook(
     return {"status": "accepted", "queued_segments": len(lines), "uid": user.uid}
 
 
+def _extract_realtime_segments(payload: Any) -> list:
+    if isinstance(payload, list):
+        return payload
+    if isinstance(payload, dict):
+        return payload.get("segments", [])
+    return []
+
+
+def _extract_realtime_event_id(payload: Any) -> str | None:
+    if isinstance(payload, dict):
+        val = payload.get("id") or payload.get("event_id") or payload.get("chunk_id")
+        return str(val) if val else None
+    return None
+
+
 @router.post("/omi/realtime")
 def omi_realtime_webhook(
     background_tasks: BackgroundTasks,
@@ -263,19 +306,17 @@ def omi_realtime_webhook(
     Official Guide Endpoint: Real-time transcript stream chunks from Omi device.
     Strictly validates segment timestamps and isolates points to authenticated user identity.
     """
-    segments = payload if isinstance(payload, list) else (payload.get("segments", []) if isinstance(payload, dict) else [])
+    segments = _extract_realtime_segments(payload)
     if len(segments) > MAX_SEGMENTS_COUNT:
         raise HTTPException(status_code=422, detail=f"Segments count exceeds limit of {MAX_SEGMENTS_COUNT}")
 
     actual_session = session_id or f"realtime_{user.uid}_{uuid.uuid4().hex[:8]}"
-    payload_event_id = None
-    if isinstance(payload, dict):
-        payload_event_id = payload.get("id") or payload.get("event_id") or payload.get("chunk_id")
+    payload_event_id = _extract_realtime_event_id(payload)
     payload_hash = hashlib.sha256(
         json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
     ).hexdigest()
     is_dup, record = default_webhook_inbox.record_incoming_event(
-        event_id=str(payload_event_id) if payload_event_id else None,
+        event_id=payload_event_id,
         payload_hash=payload_hash,
         uid=user.uid,
         session_id=actual_session,
@@ -284,30 +325,8 @@ def omi_realtime_webhook(
     if is_dup:
         return {"status": "duplicate", "session_id": record["session_id"], "indexed_queued": 0}
 
-    indexed = 0
     try:
-        for s in segments:
-            if not isinstance(s, dict):
-                raise HTTPException(status_code=422, detail="Each segment must be a JSON object")
-
-            t = str(s.get("text", "")).strip()
-            if t:
-                try:
-                    start_val = float(s.get("start", 0))
-                    if math.isnan(start_val) or math.isinf(start_val) or start_val < 0.0 or start_val > MAX_TIMESTAMP_SECONDS:
-                        raise HTTPException(status_code=422, detail="Segment start must be non-negative and valid timestamp")
-                except (TypeError, ValueError) as exc:
-                    raise HTTPException(status_code=422, detail="Segment start must be numeric") from exc
-
-                orchestrator.memory.index_utterance(
-                    session_id=actual_session,
-                    speaker=str(s.get("speaker", "Omi User"))[:MAX_SPEAKER_LENGTH],
-                    text=t[:MAX_SEGMENT_TEXT_LENGTH],
-                    timestamp=start_val,
-                    timestamp_str="live",
-                    uid=user.uid,
-                )
-                indexed += 1
+        indexed = _index_realtime_segments(segments, actual_session, user.uid)
         default_webhook_inbox.mark_completed(record["event_key"])
     except HTTPException:
         default_webhook_inbox.mark_failed(record["event_key"], "Realtime payload validation failed")

@@ -16,8 +16,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from backend.config import settings, validate_production_config
 from backend.auth import COOKIE_NAME
+from backend.config import settings, validate_production_config
 from backend.routers import (
     auth_router,
     health_router,
