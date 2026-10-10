@@ -98,6 +98,9 @@ class Settings(BaseModel):
             if attr not in data and env_var in os.environ:
                 setattr(self, attr, os.environ[env_var])
 
+        if not self.omi_webhook_secret and self.api_secret_key:
+            self.omi_webhook_secret = self.api_secret_key
+
         if "port" not in data and "PORT" in os.environ:
             try:
                 self.port = int(os.environ["PORT"])
@@ -122,8 +125,8 @@ def validate_production_config(cfg: Settings | None = None) -> None:
             missing.append("API_SECRET_KEY")
         if not active_cfg.qdrant_url:
             missing.append("QDRANT_URL")
-        if not active_cfg.omi_webhook_secret:
-            missing.append("OMI_WEBHOOK_SECRET")
+        if not (active_cfg.omi_webhook_secret or active_cfg.api_secret_key):
+            missing.append("OMI_WEBHOOK_SECRET (or API_SECRET_KEY)")
         if missing:
             raise RuntimeError(
                 f"Missing required production configuration: {', '.join(missing)}. "
