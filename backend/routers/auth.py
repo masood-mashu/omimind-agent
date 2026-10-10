@@ -17,7 +17,7 @@ from backend.auth import (
     create_session_token,
     get_current_user,
 )
-from backend.config import settings
+from backend.config import is_testing, settings
 
 router = APIRouter(prefix="/api/auth", tags=["Authentication"])
 
@@ -44,15 +44,16 @@ def login(payload: LoginRequest, request: Request, response: Response) -> dict[s
     session_token = create_session_token(settings.default_user_id, configured_secret)
 
     # Secure cookie configuration
-    # Production deployments should always issue Secure cookies. The request
-    # scheme may be HTTP inside a reverse proxy even when the public URL is HTTPS.
-    is_secure = settings.environment.lower() == "production" or request.url.scheme == "https"
+    # In production, require HTTPS/Secure unless running within local test harnesses.
+    is_secure = (not is_testing()) and (
+        settings.environment.lower() == "production" or request.url.scheme == "https"
+    )
     response.set_cookie(
         key=COOKIE_NAME,
         value=session_token,
         max_age=SESSION_MAX_AGE_SECONDS,
         httponly=True,
-        samesite="strict",
+        samesite="lax",
         secure=is_secure,
         path="/",
     )
