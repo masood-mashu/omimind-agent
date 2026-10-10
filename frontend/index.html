@@ -157,10 +157,21 @@
           </a>
         </div>
 
-        <!-- Desktop Quick Status -->
+        <!-- Desktop Quick Status & Wearable Telemetry (from Stitch) -->
         <div class="hidden md:flex items-center gap-3 text-xs font-mono-tech">
-          <span class="text-slate-400">Arch:</span>
-          <span class="text-slate-300">Omi → Qdrant Memory → Lyzr Swarm</span>
+          <div class="hidden lg:flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900/90 border border-white/10 text-[11px] shadow-inner">
+            <span class="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse"></span>
+            <span class="text-cyan-300 font-semibold">Omi Active</span>
+            <span class="text-slate-600">|</span>
+            <span class="flex items-center gap-1 text-emerald-400 font-semibold">
+              <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+              <span>94%</span>
+            </span>
+            <span class="text-slate-600">|</span>
+            <span class="text-slate-400">BLE -42dBm</span>
+          </div>
+          <span class="text-slate-500 hidden xl:inline">•</span>
+          <span class="text-slate-400 hidden xl:inline">Arch: <span class="text-slate-300">Omi → Qdrant → Lyzr Swarm</span></span>
         </div>
 
         <!-- Top Right Actions -->

@@ -123,6 +123,29 @@ export function renderHome(container) {
           <canvas id="ambient-waveform" width="800" height="36" class="w-full h-9 rounded-lg"></canvas>
         </div>
 
+        <!-- Wearable Hardware Telemetry Sub-bar (from Stitch Obsidian Telemetry) -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 border-t border-white/5 text-[11px] font-mono-tech">
+          <div class="p-2 rounded-xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
+            <span class="text-slate-400">Omi Battery</span>
+            <span class="text-emerald-400 font-bold flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              94% (18h)
+            </span>
+          </div>
+          <div class="p-2 rounded-xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
+            <span class="text-slate-400">BLE Signal</span>
+            <span class="text-cyan-300 font-bold">-42 dBm</span>
+          </div>
+          <div class="p-2 rounded-xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
+            <span class="text-slate-400">DSP Latency</span>
+            <span class="text-indigo-300 font-bold">18.2 ms</span>
+          </div>
+          <div class="p-2 rounded-xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
+            <span class="text-slate-400">Encryption</span>
+            <span class="text-purple-300 font-bold">AES-256</span>
+          </div>
+        </div>
+
         <!-- Dedicated Direct Typing Input Box -->
         <div class="mt-4 pt-3.5 border-t border-white/5">
           <form id="home-inline-ingest-form" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
@@ -146,6 +169,116 @@ export function renderHome(container) {
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
             </button>
           </form>
+        </div>
+      </section>
+
+      <!-- Multi-Agent Swarm Orchestrator (Adopted from Stitch Obsidian Telemetry) -->
+      <section class="omi-card p-5 border border-white/10 shadow-2xl relative overflow-hidden">
+        <div class="absolute -right-16 -top-16 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -left-16 -bottom-16 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <!-- Section Header -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-white/5 gap-2 relative z-10">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-sm font-bold text-white tracking-wide">Multi-Agent Swarm Orchestrator</h2>
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                  Lyzr Swarm v2.4
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-400 font-mono-tech mt-0.5">Automated autonomous pipeline triggered from live wearable ambient audio</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="px-2.5 py-1 rounded-full text-[10px] font-mono-tech bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              Synchronized Pipeline: 4 Nodes Active
+            </span>
+            <a href="#activity" class="text-xs text-cyan-400 hover:text-cyan-300 font-medium px-2 py-1 rounded hover:bg-white/5 transition">
+              Live Feed →
+            </a>
+          </div>
+        </div>
+
+        <!-- 4-Node Connected Cards Grid -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mt-4 relative z-10">
+
+          <!-- Node 1: Memory Agent -->
+          <div class="p-3.5 rounded-xl bg-slate-900/80 border border-cyan-500/30 hover:border-cyan-400/50 transition relative group flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-cyan-500/20 text-cyan-300 font-bold">
+                  01 // MEMORY AGENT
+                </span>
+                <span class="text-[10px] font-mono-tech text-emerald-400 font-semibold">98% Match</span>
+              </div>
+              <h3 class="text-xs font-bold text-white">Qdrant Vector Retrieval</h3>
+              <p class="text-[11px] text-slate-400 mt-1 font-mono-tech">Embeds ambient speech & queries <code class="text-cyan-300">omi_ambient_memory</code> with cosine similarity.</p>
+            </div>
+            <div class="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-[10px] font-mono-tech text-slate-500">
+              <span>Grounding: Active</span>
+              <span class="text-cyan-400 font-semibold">Vector Store</span>
+            </div>
+          </div>
+
+          <!-- Node 2: Reasoner Agent -->
+          <div class="p-3.5 rounded-xl bg-slate-900/80 border border-indigo-500/30 hover:border-indigo-400/50 transition relative group flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-indigo-500/20 text-indigo-300 font-bold">
+                  02 // REASONER AGENT
+                </span>
+                <span class="text-[10px] font-mono-tech text-indigo-300 font-semibold">Synthesizing</span>
+              </div>
+              <h3 class="text-xs font-bold text-white">Contextual Synthesis</h3>
+              <p class="text-[11px] text-slate-400 mt-1 font-mono-tech">Lyzr manager agent cross-references past meetings, speakers, and budget context.</p>
+            </div>
+            <div class="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-[10px] font-mono-tech text-slate-500">
+              <span>Model: Lyzr Pro</span>
+              <span class="text-indigo-400 font-semibold">Cognitive Node</span>
+            </div>
+          </div>
+
+          <!-- Node 3: Action Extractor -->
+          <div class="p-3.5 rounded-xl bg-slate-900/80 border border-amber-500/30 hover:border-amber-400/50 transition relative group flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-amber-500/20 text-amber-300 font-bold">
+                  03 // ACTION EXTRACTOR
+                </span>
+                <span class="text-[10px] font-mono-tech text-amber-300 font-semibold">Parsed</span>
+              </div>
+              <h3 class="text-xs font-bold text-white">Commitment Ledger</h3>
+              <p class="text-[11px] text-slate-400 mt-1 font-mono-tech">Parses spoken promises into structured assignees, deadlines, and priority tags.</p>
+            </div>
+            <div class="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-[10px] font-mono-tech text-slate-500">
+              <span>Priority: Critical</span>
+              <span class="text-amber-400 font-semibold">Tasks Extracted</span>
+            </div>
+          </div>
+
+          <!-- Node 4: Task Dispatcher -->
+          <div class="p-3.5 rounded-xl bg-slate-900/80 border border-purple-500/30 hover:border-purple-400/50 transition relative group flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-purple-500/20 text-purple-300 font-bold">
+                  04 // TASK DISPATCHER
+                </span>
+                <span class="text-[10px] font-mono-tech text-purple-300 font-semibold">Drafts Ready</span>
+              </div>
+              <h3 class="text-xs font-bold text-white">Execution Gateway</h3>
+              <p class="text-[11px] text-slate-400 mt-1 font-mono-tech">Generates follow-up email, Jira ticket payloads, and calendar schedule events.</p>
+            </div>
+            <div class="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-[10px] font-mono-tech text-slate-500">
+              <span>Outputs: 3 Drafts</span>
+              <span class="text-purple-400 font-semibold">Ready to Sync</span>
+            </div>
+          </div>
+
         </div>
       </section>
 
