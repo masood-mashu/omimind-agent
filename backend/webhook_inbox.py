@@ -27,7 +27,11 @@ def _get_db_path() -> str:
     if is_testing():
         return os.path.join(tempfile.gettempdir(), f"omimind_test_inbox_{os.getpid()}.db")
     if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or os.environ.get("LAMBDA_TASK_ROOT"):
-        return os.path.join(tempfile.gettempdir(), "omimind_webhook_inbox.db")
+        raise RuntimeError(
+            "Durable webhook inbox storage is not configured for serverless runtime. "
+            "Set WEBHOOK_INBOX_DB_PATH to a genuinely persistent mounted database, "
+            "or deploy the webhook receiver on a stateful service."
+        )
     storage_dir = os.path.abspath("qdrant_storage")
     os.makedirs(storage_dir, exist_ok=True)
     return os.path.join(storage_dir, "webhook_inbox.db")
