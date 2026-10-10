@@ -26,7 +26,7 @@ def get_embedding_provider() -> BaseEmbeddingModel:
         return SentenceTransformerEmbedding()
     if provider in ("test", "deterministic", "development"):
         return DeterministicSubwordEmbedding()
-    if "pytest" in sys.modules:
+    if "pytest" in sys.modules or os.environ.get("VERCEL"):
         return DeterministicSubwordEmbedding()
     return FastEmbedEmbedding()
 
