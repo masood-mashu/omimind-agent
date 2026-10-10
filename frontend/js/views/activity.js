@@ -169,14 +169,14 @@ export function renderActivity(container) {
           </div>
         </div>
 
-        <!-- Real Hierarchical Multi-Agent Swarm Topology -->
+        <!-- Configured Lyzr Manager Architecture -->
         <div class="omi-card p-6 border border-white/10 bg-[#0e131f] space-y-5">
           <div class="flex items-center justify-between border-b border-white/5 pb-3">
             <div>
               <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono-tech">
-                Verified Swarm Architecture
+                Configured Lyzr Manager Architecture
               </h2>
-              <p class="text-xs text-slate-300 mt-0.5">Real hierarchical agent routing verified in production</p>
+              <p class="text-xs text-slate-300 mt-0.5">Manager agent invocation (delegation depends on Lyzr Studio configuration)</p>
             </div>
             <span class="text-xs font-mono-tech px-2.5 py-1 rounded-lg bg-purple-900/40 text-purple-300 border border-purple-500/30">
               Lyzr Manager: 6ac5795151dce5f00e746950
@@ -224,8 +224,8 @@ export function renderActivity(container) {
                 <div class="flex items-center gap-3">
                   <span class="w-8 h-8 rounded-lg bg-purple-500/20 text-purple-300 flex items-center justify-center text-sm font-bold font-mono-tech">3</span>
                   <div>
-                    <h3 class="font-bold text-sm text-white">Lyzr Manager Swarm Coordinator</h3>
-                    <p class="text-xs text-slate-300">Autonomous hierarchical reasoning & task delegation</p>
+                    <h3 class="font-bold text-sm text-white">Configured Lyzr Manager Coordinator</h3>
+                    <p class="text-xs text-slate-300">Supervisory reasoning & task orchestration</p>
                   </div>
                 </div>
                 <span class="text-[11px] font-mono-tech px-2.5 py-1 rounded-lg bg-purple-900/40 text-purple-300 border border-purple-500/30">

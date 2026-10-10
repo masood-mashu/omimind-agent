@@ -213,6 +213,12 @@ ENVIRONMENT=production
 API_SECRET_KEY=your-secure-random-secret
 OMI_WEBHOOK_SECRET=your-omi-webhook-secret
 
+# Webhook inbox persistence (required for production)
+# Use a persistent mounted path on a stateful host. Vercel/serverless
+# deployments must provide a durable database-backed inbox or run the
+# webhook receiver on a stateful service; local function filesystems are not durable.
+WEBHOOK_INBOX_DB_PATH=/var/lib/omimind/webhook_inbox.db
+
 # Qdrant Configuration
 QDRANT_URL=https://your-cluster-id.us-east4-0.gcp.cloud.qdrant.io:6333
 QDRANT_API_KEY=your-qdrant-api-key
@@ -222,6 +228,10 @@ COLLECTION_NAME=omi_ambient_memory
 LYZR_API_KEY=your-lyzr-api-key
 LYZR_MANAGER_AGENT_ID=6ac5795151dce5f00e746950
 ```
+
+> The webhook inbox is intentionally fail-closed on serverless runtimes when no
+> durable `WEBHOOK_INBOX_DB_PATH` is configured. Do not point it at ephemeral
+> `/tmp` storage if restart-safe deduplication is required.
 
 ### 4. Run the Application
 
@@ -266,8 +276,8 @@ pytest --cov=agents --cov=backend tests/ --cov-report=term-missing
 
 ### Verified Test Benchmark Results
 ```text
-======================= 139 passed, 1 skipped in 13.23s =======================
-TOTAL Coverage: 85.73% (Passes 80.0% CI threshold)
+======================= 164 passed in 182.69s =======================
+TOTAL Coverage: 88.49% (Passes 80.0% CI threshold)
 Ruff Linter: All checks passed (0 errors)
 ```
 
@@ -282,23 +292,24 @@ omimind-agent/
 │   ├── action_extractor.py  # Commitment, assignee, priority & deadline extraction
 │   ├── calendar_scheduler.py# Temporal extraction & 1-click Google Calendar URLs
 │   ├── executive_synth.py   # Executive briefings, key decisions & risk analysis
-│   ├── lyzr_client.py       # Async non-blocking Lyzr Studio swarm client with retries
-│   ├── memory_agent.py      # Qdrant vector memory lifecycle, hybrid search & purges
+│   ├── lyzr_client.py       # Async non-blocking Lyzr Studio client with retries
+│   ├── memory_agent.py      # Non-destructive Qdrant vector memory lifecycle, search & purges
 │   ├── orchestrator.py      # Central multi-agent pipeline coordinator
 │   └── task_dispatcher.py   # Markdown email drafts & structured Jira backlog items
 ├── backend/
-│   ├── auth.py              # Constant-time auth, tenant identity & webhook verification
+│   ├── auth.py              # Constant-time auth, session cookies, tenant identity & webhook verification
 │   ├── config.py            # Typed settings with fail-fast production startup checks
 │   ├── main.py              # FastAPI application, payload limits & error handlers
 │   ├── mock_data.py         # Structured pre-set demo meeting scenarios
-│   ├── routers/             # Modular REST routers (health, memory, pipeline, webhooks)
+│   ├── routers/             # Modular REST routers (auth, health, memory, pipeline, webhooks)
 │   ├── schemas/api_models.py# Strict Pydantic schemas with input bounds & validation
-│   └── shared.py            # Shared singleton instances and cache
+│   ├── shared.py            # Shared singleton instances and cache
+│   └── webhook_inbox.py     # SQLite durable webhook inbox and restart-safe deduplication
 ├── frontend/                # Vanilla ES Modules UI (responsive, zero external build tools)
 │   ├── css/styles.css       # Design tokens, accessibility focus-visible, animations
-│   ├── js/                  # SPA router, API client, Web Audio capture & views
-│   └── index.html           # Main application shell with PWA web manifest
-├── tests/                   # 12 test suites covering 139 test scenarios
+│   ├── js/                  # SPA router, authenticated API client, Web Audio capture & views
+│   └── index.html           # Main application shell with authentication modal & PWA manifest
+├── tests/                   # 14 test suites covering 164 test scenarios
 ├── docs/                    # Architecture, data flow, execution, and sequence diagrams
 ├── .github/workflows/ci.yml # Automated GitHub Actions CI (Python 3.10 & 3.11)
 ├── mcp_server.py            # Model Context Protocol (MCP) stdio JSON-RPC server
@@ -333,23 +344,23 @@ omimind-agent/
 OmiMind integrates directly with Omi's ambient voice pipeline through three dedicated webhook endpoints:
 - `POST /omi/conversation` — triggers after a conversation concludes; ingests diarised `transcript_segments[]` with speaker attribution directly into persistent vector storage.
 - `POST /omi/realtime` — ingests streaming audio transcripts in real time as the user speaks.
-- `POST /api/omi-webhook` — handles native Omi wearable segment payloads with an accepted-job HTTP response; processing is deferred so the webhook remains responsive.
+- `POST /api/omi-webhook` — handles native Omi wearable segment payloads with durable SQLite inbox deduplication and synchronous vector persistence before returning HTTP 202.
 Tested and verified with automated test suites, simulated audio feeds, and live microphone capture.
 
 ### Qdrant Usage
-Every spoken utterance is converted into a 384-dimensional `BAAI/bge-small-en-v1.5` dense vector and indexed in the `omi_ambient_memory` collection on configured Qdrant storage. Semantic retrieval utilizes Cosine similarity with strict user scoping (`uid`), speaker metadata, and temporal timestamps. Includes a dedicated `/api/forget` endpoint for GDPR-compliant memory purges.
+Every spoken utterance is converted into a 384-dimensional `BAAI/bge-small-en-v1.5` dense vector and indexed in the `omi_ambient_memory` collection on configured Qdrant storage. Semantic retrieval utilizes Cosine similarity with strict user scoping (`uid`), speaker metadata, and temporal timestamps. Existing collections are protected from destructive deletion on dimension mismatch. Includes a dedicated `/api/forget` endpoint for GDPR-compliant memory purges.
 
 ### Lyzr Usage
-OmiMind utilizes **Lyzr Agent Studio Cloud** powered by `gpt-4o` and `gpt-4o-mini` as the core reasoning engine. The pipeline exposes an observable multi-agent orchestration streamed over Server-Sent Events (SSE):
+OmiMind utilizes **Lyzr Agent Studio Cloud** with the configured Manager Agent as the core reasoning engine. The pipeline exposes an observable multi-agent orchestration streamed over Server-Sent Events (SSE):
 1. **MemoryAgent:** Indexes transcript evidence into Qdrant Cloud.
 2. **QdrantRetrieval:** Semantically retrieves relevant, user-scoped meeting context.
-3. **LyzrManager:** Reasons over the retrieved context through Lyzr Studio Cloud (`gpt-4o` / `gpt-4o-mini`) to generate structured synthesis.
+3. **LyzrManager:** Reasons over the retrieved context through the configured Lyzr Studio Manager Agent (delegation configured within Lyzr Studio) to generate structured synthesis.
 4. **Deterministic Validators:** Extract and normalize actions, decisions, risks, and scheduling intent.
-5. **Draft Outputs:** Prepares 1-click email drafts, Atlassian Jira issue schemas, RFC 5545 `.ics` files, and Google Meet URLs.
-Telemetry verified across **126 live cloud inference benchmark traces** with **2.25s average latency** and a **0.00% baseline error rate**, plus **214 total development executions** demonstrating automatic quota resilience and honest fallback attribution.
+5. **Draft Outputs:** Prepares user-controlled email drafts, Atlassian Jira issue payload drafts, RFC 5545 `.ics` files, and Google Calendar draft URLs.
+The client connects to the configured Lyzr Manager Agent with bounded timeouts and retries, falling back to local deterministic processing when unconfigured with transparent provider attribution (`lyzr_studio_cloud` vs `deterministic_fallback`).
 
 ### Project Description
-OmiMind is an ambient voice memory and autonomous Chief of Staff built for Track 1 (Meeting & Lecture Intelligence). It captures spoken meetings seamlessly via Omi wearable webhooks, indexes utterances into persistent Qdrant Cloud vector memory using FastEmbed 384-dim embeddings, and runs multi-agent reasoning through Lyzr Agent Studio Cloud (`gpt-4o` / `gpt-4o-mini`). OmiMind delivers real-time SSE stream observability, grounded Q&A over past conversations, automated action items with owners and deadlines, 1-click calendar sync, and native Model Context Protocol (MCP) support for external developer IDEs. Live at https://omimind-agent.vercel.app/.
+OmiMind is an ambient voice memory and autonomous Chief of Staff built for Track 1 (Meeting & Lecture Intelligence). It captures spoken meetings seamlessly via Omi wearable webhooks, indexes utterances into persistent Qdrant Cloud vector memory using FastEmbed 384-dim embeddings, and runs reasoning through the configured Lyzr Agent Studio Manager. OmiMind delivers real-time SSE stream observability, grounded Q&A over past conversations, automated action items with owners and deadlines, user-controlled calendar drafts, and native Model Context Protocol (MCP) support for external developer IDEs. Live at https://omimind-agent.vercel.app/.
 
 ---
 

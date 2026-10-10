@@ -24,56 +24,24 @@ from backend.schemas.api_models import (
     OmiWebhookRequest,
 )
 from backend.shared import cache_processed, orchestrator, parse_transcript
+from backend.webhook_inbox import default_webhook_inbox
 
 logger = logging.getLogger("omimind.webhooks")
 router = APIRouter(tags=["Omi Webhooks"])
 
-# Ephemeral in-memory cache for event deduplication
-_processed_events: dict[str, float] = {}
 
-
-def _event_key(event_id: str | None, payload: Any = None, uid: str | None = None) -> str | None:
-    if event_id:
-        return f"{uid or ''}:{event_id}"
-    if payload is None:
-        return None
-    serialized = json.dumps(payload, sort_keys=True, separators=(",", ":"), default=str)
-    digest = hashlib.sha256(serialized.encode("utf-8")).hexdigest()
-    return f"{uid or ''}:payload:{digest}"
-
-
-def _check_and_record_event(event_id: str | None, payload: Any = None, uid: str | None = None) -> bool:
-    """
-    Returns True if event_id was already processed within the deduplication window (duplicate).
-    Returns False and registers the event if new.
-    """
-    key = _event_key(event_id, payload, uid)
-    if not key:
-        return False
-    now = time.time()
-    # Evict events older than 1 hour
-    stale_keys = [k for k, v in _processed_events.items() if now - v > 3600]
-    for k in stale_keys:
-        _processed_events.pop(k, None)
-
-    if key in _processed_events:
-        return True
-    _processed_events[key] = now
-    return False
-
-
-def _process_omi_webhook(session_id: str, lines: list[dict[str, Any]], uid: str = "default_user") -> None:
+def _process_omi_webhook_synthesis(session_id: str, lines: list[dict[str, Any]], uid: str = "default_user") -> None:
     try:
         dossier = orchestrator.process_session(
             session_id=session_id,
             title="Omi Live Session",
             transcript_lines=lines,
             uid=uid,
-            index_memory=True,
+            index_memory=False,
         )
         cache_processed(session_id, dossier, uid)
     except Exception as exc:
-        logger.error(f"Background processing of Omi webhook failed: {exc}")
+        logger.error(f"Background synthesis of Omi webhook failed: {exc}")
 
 
 @router.post("/api/omi-webhook", status_code=202)
@@ -86,9 +54,8 @@ def omi_webhook(
     Native Omi device webhook endpoint.
     Protected by verified webhook credentials; derives server-side user identity.
     Accepts Omi's standard segment payload or a flat transcript string.
-    Acknowledges asynchronously with HTTP 202; schedules single-pass indexing in background.
+    Guarantees persistence into SQLite inbox and vector storage before acknowledging with HTTP 202.
     """
-    # Idempotency is recorded only after the payload has passed validation.
     event_id = req.event_id or req.session_id
     session_id = req.session_id or req.event_id or f"omi_{uuid.uuid4().hex[:8]}"
     uid = user.uid
@@ -114,16 +81,48 @@ def omi_webhook(
     if not lines:
         raise HTTPException(status_code=400, detail="No valid utterances found in payload")
 
-    if _check_and_record_event(event_id, req.model_dump(mode="json"), user.uid):
+    payload_dict = req.model_dump(mode="json")
+    payload_hash = hashlib.sha256(
+        json.dumps(payload_dict, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
+
+    # 1. Check and record in durable inbox before processing
+    is_dup, record = default_webhook_inbox.record_incoming_event(
+        event_id=event_id,
+        payload_hash=payload_hash,
+        uid=uid,
+        session_id=session_id,
+        payload=payload_dict,
+    )
+    if is_dup:
         return {
             "status": "duplicate",
             "message": "Webhook event already processed",
-            "session_id": session_id,
+            "session_id": record["session_id"],
             "vectors_queued": 0,
         }
 
-    # Authoritative single-pass indexing and processing deferred to background tasks
-    background_tasks.add_task(_process_omi_webhook, session_id, lines, uid)
+    # 2. Synchronous persistence before acknowledgement: index utterances
+    try:
+        for i, line in enumerate(lines):
+            orchestrator.memory.index_utterance(
+                session_id=session_id,
+                speaker=line.get("speaker", req.speaker or "Omi User"),
+                text=line.get("text", ""),
+                timestamp=float(i * 15),
+                timestamp_str=line.get("timestamp_str", "live"),
+                topic="omi_webhook",
+                urgency="normal",
+                uid=uid,
+            )
+        default_webhook_inbox.mark_completed(record["event_key"])
+    except Exception as exc:
+        default_webhook_inbox.mark_failed(record["event_key"], str(exc))
+        logger.error(f"Failed to persist webhook utterances: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to persist webhook utterances") from exc
+
+    # 3. Schedule background executive synthesis dossier generation (index_memory=False to prevent duplicate vectors)
+    background_tasks.add_task(_process_omi_webhook_synthesis, session_id, lines, uid)
     return {"status": "accepted", "session_id": session_id, "vectors_queued": len(lines)}
 
 
@@ -202,7 +201,19 @@ def omi_conversation_webhook(
     if not lines:
         return {"status": "empty"}
 
-    if _check_and_record_event(str(event_id) if event_id else None, payload, user.uid):
+    payload_hash = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
+    sess_id = f"conv_{user.uid}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
+
+    is_dup, record = default_webhook_inbox.record_incoming_event(
+        event_id=str(event_id) if event_id else None,
+        payload_hash=payload_hash,
+        uid=user.uid,
+        session_id=sess_id,
+        payload=payload,
+    )
+    if is_dup:
         return {
             "status": "duplicate",
             "message": "Conversation event already processed",
@@ -211,21 +222,24 @@ def omi_conversation_webhook(
 
     structured = (payload if isinstance(payload, dict) else {}).get("structured") or {}
 
-    # Collision-safe session ID incorporating timestamp and UUID
-    sess_id = f"conv_{user.uid}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
-
     # Direct synchronous indexing to guarantee persistence before webhook acknowledges
-    for i, line in enumerate(lines):
-        orchestrator.memory.index_utterance(
-            session_id=sess_id,
-            speaker=line.get("speaker", "Speaker"),
-            text=line.get("text", ""),
-            timestamp=float(i * 15),
-            timestamp_str=line.get("timestamp_str", "live"),
-            topic="omi_conversation",
-            urgency="normal",
-            uid=user.uid,
-        )
+    try:
+        for i, line in enumerate(lines):
+            orchestrator.memory.index_utterance(
+                session_id=sess_id,
+                speaker=line.get("speaker", "Speaker"),
+                text=line.get("text", ""),
+                timestamp=float(i * 15),
+                timestamp_str=line.get("timestamp_str", "live"),
+                topic="omi_conversation",
+                urgency="normal",
+                uid=user.uid,
+            )
+        default_webhook_inbox.mark_completed(record["event_key"])
+    except Exception as exc:
+        default_webhook_inbox.mark_failed(record["event_key"], str(exc))
+        logger.error(f"Failed to persist conversation utterances: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to persist conversation utterances") from exc
 
     # Background task for executive synthesis with index_memory=False to avoid double-indexing
     background_tasks.add_task(
@@ -253,30 +267,54 @@ def omi_realtime_webhook(
     if len(segments) > MAX_SEGMENTS_COUNT:
         raise HTTPException(status_code=422, detail=f"Segments count exceeds limit of {MAX_SEGMENTS_COUNT}")
 
-    indexed = 0
     actual_session = session_id or f"realtime_{user.uid}_{uuid.uuid4().hex[:8]}"
+    payload_event_id = None
+    if isinstance(payload, dict):
+        payload_event_id = payload.get("id") or payload.get("event_id") or payload.get("chunk_id")
+    payload_hash = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
+    ).hexdigest()
+    is_dup, record = default_webhook_inbox.record_incoming_event(
+        event_id=str(payload_event_id) if payload_event_id else None,
+        payload_hash=payload_hash,
+        uid=user.uid,
+        session_id=actual_session,
+        payload=payload,
+    )
+    if is_dup:
+        return {"status": "duplicate", "session_id": record["session_id"], "indexed_queued": 0}
 
-    for s in segments:
-        if not isinstance(s, dict):
-            raise HTTPException(status_code=422, detail="Each segment must be a JSON object")
+    indexed = 0
+    try:
+        for s in segments:
+            if not isinstance(s, dict):
+                raise HTTPException(status_code=422, detail="Each segment must be a JSON object")
 
-        t = str(s.get("text", "")).strip()
-        if t:
-            try:
-                start_val = float(s.get("start", 0))
-                if math.isnan(start_val) or math.isinf(start_val) or start_val < 0.0 or start_val > MAX_TIMESTAMP_SECONDS:
-                    raise HTTPException(status_code=422, detail="Segment start must be non-negative and valid timestamp")
-            except (TypeError, ValueError) as exc:
-                raise HTTPException(status_code=422, detail="Segment start must be numeric") from exc
+            t = str(s.get("text", "")).strip()
+            if t:
+                try:
+                    start_val = float(s.get("start", 0))
+                    if math.isnan(start_val) or math.isinf(start_val) or start_val < 0.0 or start_val > MAX_TIMESTAMP_SECONDS:
+                        raise HTTPException(status_code=422, detail="Segment start must be non-negative and valid timestamp")
+                except (TypeError, ValueError) as exc:
+                    raise HTTPException(status_code=422, detail="Segment start must be numeric") from exc
 
-            orchestrator.memory.index_utterance(
-                session_id=actual_session,
-                speaker=str(s.get("speaker", "Omi User"))[:MAX_SPEAKER_LENGTH],
-                text=t[:MAX_SEGMENT_TEXT_LENGTH],
-                timestamp=start_val,
-                timestamp_str="live",
-                uid=user.uid,
-            )
-            indexed += 1
+                orchestrator.memory.index_utterance(
+                    session_id=actual_session,
+                    speaker=str(s.get("speaker", "Omi User"))[:MAX_SPEAKER_LENGTH],
+                    text=t[:MAX_SEGMENT_TEXT_LENGTH],
+                    timestamp=start_val,
+                    timestamp_str="live",
+                    uid=user.uid,
+                )
+                indexed += 1
+        default_webhook_inbox.mark_completed(record["event_key"])
+    except HTTPException:
+        default_webhook_inbox.mark_failed(record["event_key"], "Realtime payload validation failed")
+        raise
+    except Exception as exc:
+        default_webhook_inbox.mark_failed(record["event_key"], str(exc))
+        logger.error(f"Failed to persist realtime webhook segments: {exc}")
+        raise HTTPException(status_code=500, detail="Failed to persist realtime webhook segments") from exc
 
     return {"status": "accepted", "indexed_queued": indexed}

@@ -17,7 +17,9 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.config import settings, validate_production_config
+from backend.auth import COOKIE_NAME
 from backend.routers import (
+    auth_router,
     health_router,
     memory_router,
     pipeline_router,
@@ -170,7 +172,30 @@ async def security_and_telemetry_middleware(request: Request, call_next):
                     },
                     "detail": "Query-string credentials are not permitted. Use Authorization: Bearer <token> or X-API-Key header.",
                 },
-            )
+                )
+
+    # Cookie-authenticated state changes must originate from this site. Browsers
+    # normally send Origin on fetch POSTs; SameSite=Strict remains the fallback
+    # protection when older clients omit it.
+    if request.method in {"POST", "PUT", "PATCH", "DELETE"} and request.cookies.get(COOKIE_NAME):
+        origin = request.headers.get("origin")
+        if origin:
+            forwarded_proto = request.headers.get("x-forwarded-proto", request.url.scheme).split(",", 1)[0].strip()
+            expected_origin = f"{forwarded_proto}://{request.headers.get('host', request.url.netloc)}"
+            if origin.rstrip("/") != expected_origin.rstrip("/"):
+                return JSONResponse(
+                    status_code=403,
+                    content={
+                        "success": False,
+                        "error": {
+                            "code": "CSRF_ORIGIN_REJECTED",
+                            "message": "Cross-origin state-changing requests are not permitted.",
+                            "status_code": 403,
+                            "timestamp": time.time(),
+                        },
+                        "detail": "Cross-origin state-changing requests are not permitted.",
+                    },
+                )
 
     start_time = time.time()
     response = await call_next(request)
@@ -182,6 +207,7 @@ async def security_and_telemetry_middleware(request: Request, call_next):
 
 # ─── Mount Modular Routers ────────────────────────────────────────────────────
 
+app.include_router(auth_router)
 app.include_router(health_router)
 app.include_router(pipeline_router)
 app.include_router(memory_router)

@@ -223,7 +223,9 @@ class TestQdrantMemoryAgent:
             res_fail = memory_agent.delete_memory(point_id=p_id)
             assert res_fail is False
 
-    def test_ensure_collection_recreates_on_dimension_mismatch(self, memory_agent):
+    def test_ensure_collection_fails_closed_on_dimension_mismatch(self, memory_agent):
+        from agents.memory_agent import QdrantDimensionMismatchError
+
         mock_info = MagicMock()
         mock_info.config.params.vectors.size = 128  # Mismatch with VECTOR_DIM (384)
         with patch.object(memory_agent.client, "get_collections") as mock_get_colls:
@@ -232,8 +234,29 @@ class TestQdrantMemoryAgent:
             mock_get_colls.return_value.collections = [mock_coll]
             with patch.object(memory_agent.client, "get_collection", return_value=mock_info):
                 with patch.object(memory_agent.client, "delete_collection") as mock_del:
-                    with patch.object(memory_agent.client, "create_collection") as mock_create:
+                    with pytest.raises(QdrantDimensionMismatchError) as exc_info:
                         memory_agent._ensure_collection()
+                    assert not mock_del.called
+                    assert "dimension mismatch" in str(exc_info.value)
+                    assert "128" in str(exc_info.value)
+
+    def test_explicit_rebuild_collection_allowed_with_confirmation(self, memory_agent):
+        mock_info = MagicMock()
+        mock_info.config.params.vectors.size = 128
+        with patch.object(memory_agent.client, "get_collections") as mock_get_colls:
+            mock_coll = MagicMock()
+            mock_coll.name = "omi_ambient_memory"
+            mock_get_colls.return_value.collections = [mock_coll]
+            with patch.object(memory_agent.client, "get_collection", return_value=mock_info):
+                with patch.object(memory_agent.client, "delete_collection") as mock_del:
+                    with patch.object(memory_agent.client, "create_collection") as mock_create:
+                        # Without confirmation, fails
+                        with pytest.raises(ValueError):
+                            memory_agent.rebuild_collection(confirm=False)
+                        assert not mock_del.called
+
+                        # With confirmation, succeeds
+                        memory_agent.rebuild_collection(confirm=True)
                         assert mock_del.called
                         assert mock_create.called
 

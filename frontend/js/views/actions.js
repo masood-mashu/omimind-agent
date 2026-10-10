@@ -27,13 +27,13 @@ export async function renderActions(container) {
             <span>Action Center</span>
           </h1>
           <p class="text-xs sm:text-sm text-slate-300 mt-0.5">
-            Verbal commitments and follow-up deliverables extracted autonomously by Lyzr Action Extractor.
+            Verbal commitments and follow-up deliverables extracted from ambient conversational memory.
           </p>
         </div>
 
         <div class="flex items-center gap-2">
           <span class="px-2.5 py-1 rounded-full bg-amber-500/10 text-amber-300 border border-amber-500/20 text-xs font-mono-tech">
-            Action Extractor (6ac578bf4b079480ed4ea5a5)
+            Action Item Intelligence
           </span>
         </div>
       </div>

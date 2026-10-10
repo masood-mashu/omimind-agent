@@ -21,12 +21,12 @@ flowchart TD
         Stream --> A5["📦 User-controlled Draft Outputs"]
     end
 
-    subgraph OUTPUTS ["📦 Autonomous Deliverables & Integrations"]
+    subgraph OUTPUTS ["📦 User-Controlled Deliverables & Drafts"]
         A2 --> Actions["Action Items + Kanban Dashboard"]
         A3 --> Dossier["Executive Briefing + Decisions + Risks"]
-        A4 --> Email["1-Click Gmail & SMTP Follow-Up Email"]
-        A4 --> Jira["Jira / GitHub API-Ready Tickets (OMI-1..6)"]
-        A5 --> Calendar["Calendar Sync (.ics) + Google Meet Links"]
+        A4 --> Email["Follow-Up Email Draft (Open in Gmail)"]
+        A4 --> Jira["Jira-Ready JSON Payloads (OMI-1..6)"]
+        A5 --> Calendar["Calendar Invite Drafts (.ics + Google Meet Links)"]
         MemAgent --> QnA["400ms Debounced Semantic Q&A Recall"]
     API -->|Grounded reasoning and Q&A| Studio["Lyzr Studio Cloud<br/>Manager Agent"]
     end

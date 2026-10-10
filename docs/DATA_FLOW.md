@@ -12,7 +12,7 @@ flowchart TD
     Session --> Pipeline["Qdrant Retrieval → Lyzr Manager (SSE Stream)"]
     Pipeline --> Extract["Action Items & Kanban<br/>Assignees + Deadlines + Priority Tags"]
     Pipeline --> Brief["Executive Dossier<br/>Decisions + Technical Risks"]
-    Pipeline --> Dispatch["Follow-Up Communications<br/>1-Click Gmail + Jira Tickets"]
+    Pipeline --> Dispatch["Follow-Up Communications<br/>Email Draft + Jira Payload"]
     Pipeline --> Schedule["Calendar Events<br/>RFC 5545 .ics + Google Meet Links"]
 
     Store --> Search["Hybrid Semantic & Lexical Recall<br/>(60% Cosine + 40% Lexical Overlap)"]
@@ -24,7 +24,7 @@ flowchart TD
     Dispatch --> Dashboard
     Schedule --> Dashboard
 
-    Dashboard -->|1-Click Action| External["Gmail Compose / Calendar Sync / .ics Download"]
+    Dashboard -->|User-Controlled Action| External["Open in Gmail Draft / Google Calendar Draft / .ics Download"]
 
     Delete["Privacy-First `/api/forget` Endpoint"] -.->|GDPR Point or Session Purge| Store
     Ask["Official `/ask` Endpoint"] --> Search

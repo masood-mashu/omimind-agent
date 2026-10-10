@@ -24,3 +24,5 @@ fastembed_cache/
 agent/
 skills-lock.json
 pyrefly.toml
+*.db
+data/

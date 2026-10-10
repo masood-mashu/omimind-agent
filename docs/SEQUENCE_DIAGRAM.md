@@ -62,7 +62,7 @@ sequenceDiagram
     API-->>UI: Grounded answer with citation & similarity score
     UI-->>User: Display 99%+ relevance match and quote
 
-    Note over User,Ext: Phase 4: Autonomous Deliverables Action
-    User->>UI: Click "+ Google Meet" / "Send via Gmail" / "Download .ics"
-    UI->>Ext: Launch calendar event / Open Gmail draft
+    Note over User,Ext: Phase 4: User-Controlled Deliverables & Drafts
+    User->>UI: Click "+ Google Calendar" / "Open in Gmail (Draft)" / "Download .ics"
+    UI->>Ext: Launch calendar event draft / Open Gmail compose window
 ```

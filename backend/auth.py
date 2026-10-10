@@ -63,9 +63,48 @@ def extract_header_token(request: Request) -> str | None:
     return None
 
 
+COOKIE_NAME = "omimind_session"
+SESSION_MAX_AGE_SECONDS = 86400 * 7  # 7 days
+
+
+def create_session_token(uid: str, secret: str) -> str:
+    """Generates an HMAC-signed session token for the user."""
+    timestamp = int(time.time())
+    payload = f"{uid}:{timestamp}".encode()
+    sig = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
+    return f"{uid}:{timestamp}:{sig}"
+
+
+def verify_session_token(token: str, secret: str) -> str | None:
+    """Verifies HMAC signature and expiration of session token. Returns verified UID or None."""
+    parts = token.split(":")
+    if len(parts) != 3:
+        return None
+    uid, timestamp_str, sig = parts
+    try:
+        ts = int(timestamp_str)
+        # Check expiration (7 days) and clock skew tolerance (300s into future)
+        if time.time() - ts > SESSION_MAX_AGE_SECONDS or ts > time.time() + 300:
+            return None
+    except ValueError:
+        return None
+    expected_payload = f"{uid}:{timestamp_str}".encode()
+    expected_sig = hmac.new(secret.encode(), expected_payload, hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, expected_sig):
+        return None
+
+    # In production, session token can only be the configured default user
+    if uid == settings.default_user_id:
+        return uid
+    if is_testing() and uid.strip():
+        return uid.strip()
+    return None
+
+
 def get_current_user(request: Request) -> AuthenticatedUser:
     """
-    Validates API authentication headers and derives the server-side user identity.
+    Validates API authentication headers or HttpOnly session cookie
+    and derives the server-side user identity.
     Does NOT trust caller-supplied UID in query or body.
     """
     check_no_query_secrets(request)
@@ -77,28 +116,37 @@ def get_current_user(request: Request) -> AuthenticatedUser:
             detail="This endpoint is disabled until API_SECRET_KEY is configured.",
         )
 
+    # 1. Check header token (Authorization: Bearer or X-API-Key)
     token = extract_header_token(request)
-    if not token:
+    if token:
+        uid: str | None = settings.default_user_id if hmac.compare_digest(token, secret) else None
+        if uid is None and is_testing() and ":" in token:
+            prefix, candidate_uid = token.split(":", 1)
+            if hmac.compare_digest(prefix, secret) and candidate_uid.strip():
+                uid = candidate_uid.strip()
+
+        if not uid:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid API key or credentials.",
+            )
+        return AuthenticatedUser(uid=uid, auth_type="api_key")
+
+    # 2. Check session cookie
+    cookie_token = request.cookies.get(COOKIE_NAME)
+    if cookie_token:
+        verified_uid = verify_session_token(cookie_token, secret)
+        if verified_uid:
+            return AuthenticatedUser(uid=verified_uid, auth_type="session_cookie")
         raise HTTPException(
             status_code=401,
-            detail="Missing authentication credentials. Provide Authorization: Bearer <token> or X-API-Key header.",
+            detail="Invalid or expired session cookie.",
         )
 
-    # The shared API secret identifies one configured tenant. Never allow a
-    # caller to mint an arbitrary tenant identity by appending a UID suffix.
-    uid: str | None = settings.default_user_id if hmac.compare_digest(token, secret) else None
-    if uid is None and is_testing() and ":" in token:
-        prefix, candidate_uid = token.split(":", 1)
-        if hmac.compare_digest(prefix, secret) and candidate_uid.strip():
-            uid = candidate_uid.strip()
-
-    if not uid:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid API key or credentials.",
-        )
-
-    return AuthenticatedUser(uid=uid, auth_type="api_key")
+    raise HTTPException(
+        status_code=401,
+        detail="Missing authentication credentials. Provide Authorization: Bearer <token>, X-API-Key header, or active session.",
+    )
 
 
 def _verify_webhook_timestamp(request: Request) -> None:

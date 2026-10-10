@@ -248,10 +248,10 @@ function renderContent(container, meeting) {
                 </div>
                 <div class="flex items-center gap-2 font-mono-tech text-xs">
                   <a href="${safeUrl(evt.google_calendar_url)}" target="_blank" rel="noopener noreferrer" class="px-3 py-1.5 rounded-lg bg-cyan-600 hover:bg-cyan-500 text-white font-semibold text-xs flex items-center gap-1.5 transition">
-                    + Google Meet
+                    Open in Google Calendar (Draft)
                   </a>
                   <button data-ics-idx="${idx}" class="btn-ics-download px-3 py-1.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition">
-                    .ics File
+                    Download .ics
                   </button>
                 </div>
               </div>
@@ -281,7 +281,7 @@ function renderContent(container, meeting) {
             <div class="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-3 flex flex-col justify-between">
               <div class="space-y-2">
                 <div class="flex items-center justify-between">
-                  <span class="font-bold text-xs text-white">Executive Follow-Up Email</span>
+                  <span class="font-bold text-xs text-white">Executive Follow-Up Email Draft</span>
                   <span class="text-[10px] text-slate-400 font-mono-tech">${emailDraft ? 'Draft Ready' : 'Pending'}</span>
                 </div>
                 ${emailDraft ? `
@@ -297,10 +297,10 @@ function renderContent(container, meeting) {
               ${emailDraft ? `
                 <div class="flex items-center gap-2 pt-2 border-t border-white/5">
                   <button id="btn-open-gmail" class="flex-1 py-1.5 px-2.5 rounded-lg bg-rose-600/20 border border-rose-500/30 text-rose-300 hover:bg-rose-600/30 text-xs font-semibold transition">
-                    Send via Gmail
+                    Open in Gmail (Draft)
                   </button>
                   <button id="btn-copy-email" class="py-1.5 px-2.5 rounded-lg border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs transition">
-                    Copy
+                    Copy Draft
                   </button>
                 </div>
               ` : ''}
@@ -310,7 +310,7 @@ function renderContent(container, meeting) {
             <div class="p-4 rounded-xl bg-slate-950/60 border border-white/5 space-y-3 flex flex-col justify-between">
               <div class="space-y-2">
                 <div class="flex items-center justify-between">
-                  <span class="font-bold text-xs text-white">Jira Ticket Payloads</span>
+                  <span class="font-bold text-xs text-white">Jira Payload Ready for Review</span>
                   <span class="text-[10px] text-slate-400 font-mono-tech">${jiraTickets.length} Payloads Ready</span>
                 </div>
                 ${jiraTickets.length > 0 ? `

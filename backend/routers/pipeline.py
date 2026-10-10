@@ -148,9 +148,9 @@ async def _stream_pipeline(
         yield sse({
             "stage": 3,
             "agent": "LyzrManager",
-            "stage_name": "Lyzr Manager Multi-Agent Swarm",
+            "stage_name": "Configured Lyzr Manager",
             "status": "running",
-            "message": "Invoking Lyzr Manager (dynamic delegation to Meeting Analyst, Action Extractor, Recall Agent)...",
+            "message": "Invoking Configured Lyzr Manager (delegation depends on Lyzr Studio configuration)...",
         })
         lyzr_result = await orchestrator.lyzr.areason(
             uid=uid,
@@ -160,7 +160,7 @@ async def _stream_pipeline(
         yield sse({
             "stage": 3,
             "agent": "LyzrManager",
-            "stage_name": "Lyzr Manager Multi-Agent Swarm",
+            "stage_name": "Configured Lyzr Manager",
             "status": "done",
             "message": f"Reasoning provider: {lyzr_result.provider}.",
             "provider": lyzr_result.provider,

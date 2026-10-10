@@ -65,9 +65,9 @@ sequenceDiagram
     FastAPIServer-->>Client: Grounded answer with verbatim citations & match score
     Client-->>Attendee: Display retrieved evidence, score, and grounded answer
 
-    Note over Attendee,Client: Phase 4: Autonomous User Actions
-    Attendee->>Client: Click "+ Google Meet" / "Send via Gmail" / "Download .ics"
-    Client->>Attendee: Launch calendar meeting / Open prefilled Gmail
+    Note over Attendee,Client: Phase 4: User-Controlled Deliverables & Drafts
+    Attendee->>Client: Click "+ Google Calendar" / "Open in Gmail (Draft)" / "Download .ics"
+    Client->>Attendee: Launch calendar meeting draft / Open prefilled Gmail compose window
 ```
 
 ---

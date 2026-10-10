@@ -36,6 +36,10 @@ from backend.config import is_testing, settings
 COLLECTION_NAME = settings.collection_name
 
 
+class QdrantDimensionMismatchError(RuntimeError):
+    """Raised when an existing Qdrant collection dimension does not match the configured VECTOR_DIM."""
+    pass
+
 
 class QdrantMemoryAgent:
     """
@@ -86,7 +90,7 @@ class QdrantMemoryAgent:
 
         self._ensure_collection()
 
-    def _ensure_collection(self):
+    def _ensure_collection(self, allow_rebuild: bool = False):
         try:
             collections = self.client.get_collections().collections
             exists = any(c.name == self.collection_name for c in collections)
@@ -94,8 +98,17 @@ class QdrantMemoryAgent:
                 info = self.client.get_collection(self.collection_name)
                 current_dim = getattr(info.config.params.vectors, "size", None)
                 if current_dim and current_dim != VECTOR_DIM:
-                    self.client.delete_collection(self.collection_name)
-                    exists = False
+                    if allow_rebuild:
+                        self.client.delete_collection(self.collection_name)
+                        exists = False
+                    else:
+                        raise QdrantDimensionMismatchError(
+                            f"Qdrant collection '{self.collection_name}' dimension mismatch: "
+                            f"existing dimension is {current_dim}, but expected dimension is {VECTOR_DIM}. "
+                            f"Existing collections are preserved and never automatically deleted. "
+                            f"Recommended migration action: update COLLECTION_NAME to a new name (e.g. '{self.collection_name}_v2') "
+                            f"to re-index into a fresh collection, or run an explicit migration with allow_rebuild=True."
+                        )
 
             if not exists:
                 self.client.create_collection(
@@ -112,8 +125,16 @@ class QdrantMemoryAgent:
                         )
                     except Exception:
                         pass
+        except QdrantDimensionMismatchError:
+            raise
         except Exception as exc:
             raise RuntimeError("Unable to initialize the persistent Qdrant collection") from exc
+
+    def rebuild_collection(self, confirm: bool = False) -> None:
+        """Explicit administrative rebuild path to delete and recreate the collection."""
+        if not confirm:
+            raise ValueError("Explicit confirmation (confirm=True) is required to rebuild the collection.")
+        self._ensure_collection(allow_rebuild=True)
 
 
     def index_utterance(

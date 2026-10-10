@@ -10,6 +10,36 @@ from agents.embeddings.base import VECTOR_DIM, BaseEmbeddingModel
 EMBEDDING_MODEL_NAME = "BAAI/bge-small-en-v1.5"
 
 
+def _get_serverless_tmp_cache() -> str:
+    if os.environ.get("FASTEMBED_CACHE_DIR"):
+        return os.environ["FASTEMBED_CACHE_DIR"]
+    if os.name == "nt":
+        import tempfile
+
+        return os.path.join(tempfile.gettempdir(), "fastembed_cache")
+    return "/tmp/fastembed_cache"
+
+
+def _is_serverless_env() -> bool:
+    return bool(
+        os.environ.get("VERCEL")
+        or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
+        or os.environ.get("LAMBDA_TASK_ROOT")
+    )
+
+
+def _find_bundled_cache() -> str | None:
+    bundled_candidates = [
+        os.path.abspath("fastembed_cache"),
+        os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "fastembed_cache")),
+        os.path.join(os.environ.get("LAMBDA_TASK_ROOT", ""), "fastembed_cache"),
+    ]
+    for candidate in bundled_candidates:
+        if candidate and os.path.isdir(candidate):
+            return candidate
+    return None
+
+
 class FastEmbedEmbedding(BaseEmbeddingModel):
     """The hackathon guide's semantic embedding provider."""
 
@@ -22,31 +52,20 @@ class FastEmbedEmbedding(BaseEmbeddingModel):
         self.initialization_error: str | None = None
 
     def _resolve_cache_dir(self) -> tuple[str | None, bool]:
-        bundled_candidates = [
-            os.path.abspath("fastembed_cache"),
-            os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", "fastembed_cache")),
-            os.path.join(os.environ.get("LAMBDA_TASK_ROOT", ""), "fastembed_cache"),
-        ]
+        is_serverless = _is_serverless_env()
+        bundled = _find_bundled_cache()
+        if bundled:
+            if not is_serverless:
+                return bundled, True
+            tmp_cache = _get_serverless_tmp_cache()
+            if not os.path.exists(tmp_cache):
+                import shutil
 
-        is_serverless = bool(
-            os.environ.get("VERCEL")
-            or os.environ.get("AWS_LAMBDA_FUNCTION_NAME")
-            or os.environ.get("LAMBDA_TASK_ROOT")
-        )
-
-        for candidate in bundled_candidates:
-            if candidate and os.path.isdir(candidate):
-                if is_serverless:
-                    tmp_cache = "/tmp/fastembed_cache"
-                    if not os.path.exists(tmp_cache):
-                        import shutil
-                        try:
-                            shutil.copytree(candidate, tmp_cache)
-                            return tmp_cache, True
-                        except Exception:
-                            return candidate, True
-                    return tmp_cache, True
-                return candidate, True
+                try:
+                    shutil.copytree(bundled, tmp_cache)
+                except Exception:
+                    return bundled, True
+            return tmp_cache, True
 
         if self.cache_dir:
             try:
@@ -56,7 +75,7 @@ class FastEmbedEmbedding(BaseEmbeddingModel):
             return self.cache_dir, False
 
         if is_serverless:
-            tmp_cache = "/tmp/fastembed_cache"
+            tmp_cache = _get_serverless_tmp_cache()
             os.makedirs(tmp_cache, exist_ok=True)
             return tmp_cache, False
         return None, False

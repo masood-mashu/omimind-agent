@@ -15,10 +15,7 @@ import { openModal, closeModal } from './components/modal.js';
 let voiceEngine = null;
 let stopWaveform = null;
 
-async function bootstrap() {
-  initNav();
-
-  // Load initial backend data in parallel
+export async function refreshAppData() {
   try {
     const [health, meetingsData, memoriesData, actionsData] = await Promise.allSettled([
       api.fetchHealth(),
@@ -35,8 +32,94 @@ async function bootstrap() {
 
     setState(updates);
   } catch (err) {
-    console.warn('Initial data load error:', err);
+    console.warn('Data refresh error:', err);
   }
+}
+
+function updateAuthButtonState(authenticated) {
+  const label = document.getElementById('btn-auth-label');
+  const btn = document.getElementById('btn-auth-toggle');
+  if (label && btn) {
+    if (authenticated) {
+      label.innerText = 'Sign Out';
+      btn.classList.replace('text-cyan-300', 'text-slate-300');
+    } else {
+      label.innerText = 'Sign In';
+      btn.classList.replace('text-slate-300', 'text-cyan-300');
+    }
+  }
+}
+
+export function openLoginModal() {
+  openModal({
+    title: 'Authenticate OmiMind Session',
+    subtitle: 'Enter your configured API Secret Key to establish an authenticated session.',
+    contentHtml: `
+      <div class="space-y-4">
+        <p class="text-xs text-slate-400">
+          Backend API endpoints are protected with strict authorization. Submitting your API key sets a secure, HttpOnly, SameSite session cookie. Credentials are never stored in browser localStorage.
+        </p>
+        <div>
+          <label for="input-api-secret" class="block text-xs font-semibold text-slate-300 mb-1.5">API Secret Key</label>
+          <input
+            id="input-api-secret"
+            type="password"
+            placeholder="Enter API_SECRET_KEY"
+            autocomplete="current-password"
+            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-cyan-500/50"
+          />
+        </div>
+      </div>
+    `,
+    actionsHtml: `
+      <button id="btn-cancel-login" class="px-3.5 py-2 rounded-xl text-xs font-medium text-slate-400 hover:text-white transition">Cancel</button>
+      <button id="btn-submit-login" class="px-4 py-2 rounded-xl text-xs font-semibold bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition flex items-center gap-1.5">Sign In</button>
+    `,
+  });
+
+  const submitBtn = document.getElementById('btn-submit-login');
+  const inputEl = document.getElementById('input-api-secret');
+  const cancelBtn = document.getElementById('btn-cancel-login');
+
+  if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
+
+  const doLogin = async () => {
+    const key = inputEl?.value?.trim();
+    if (!key) {
+      showToast('Please enter your API secret key', 'warning');
+      return;
+    }
+    submitBtn.disabled = true;
+    submitBtn.innerText = 'Authenticating...';
+    try {
+      await api.login(key);
+      showToast('Authenticated successfully', 'success');
+      closeModal();
+      updateAuthButtonState(true);
+      await refreshAppData();
+    } catch (err) {
+      showToast(err.message || 'Authentication failed', 'error');
+      submitBtn.disabled = false;
+      submitBtn.innerText = 'Sign In';
+    }
+  };
+
+  if (submitBtn) submitBtn.addEventListener('click', doLogin);
+  if (inputEl) {
+    inputEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') doLogin();
+    });
+  }
+}
+
+async function bootstrap() {
+  initNav();
+
+  // Check authentication status and load initial data
+  const auth = await api.checkAuthStatus().catch(() => ({ authenticated: false }));
+  updateAuthButtonState(auth.authenticated);
+
+  await refreshAppData();
 
   // Setup Audio Engine
   voiceEngine = setupVoiceCapture({
@@ -78,6 +161,21 @@ async function bootstrap() {
 
   // Global event delegation for Mic triggers and Quick Voice Memo
   document.addEventListener('click', async (e) => {
+    // 0. Auth toggle button
+    const authBtn = e.target.closest('#btn-auth-toggle');
+    if (authBtn) {
+      e.preventDefault();
+      const auth = await api.checkAuthStatus().catch(() => ({ authenticated: false }));
+      if (auth.authenticated) {
+        await api.logout();
+        showToast('Logged out successfully', 'info');
+        updateAuthButtonState(false);
+      } else {
+        openLoginModal();
+      }
+      return;
+    }
+
     // 1. Mic Toggle button
     const micBtn = e.target.closest('#btn-home-mic, #btn-top-mic, #btn-mic');
     if (micBtn) {
@@ -100,6 +198,14 @@ async function bootstrap() {
           () => getState().isRecording
         );
       }, 100);
+    }
+  });
+
+  // Listen for unauthorized responses across all views
+  window.addEventListener('omimind:unauthorized', () => {
+    updateAuthButtonState(false);
+    if (!document.getElementById('input-api-secret')) {
+      openLoginModal();
     }
   });
 
