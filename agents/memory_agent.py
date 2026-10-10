@@ -200,11 +200,21 @@ class QdrantMemoryAgent:
             conditions.append(FieldCondition(key="speaker", match=MatchValue(value=speaker)))
         if topic:
             conditions.append(FieldCondition(key="topic", match=MatchValue(value=topic)))
-        if uid:
-            conditions.append(FieldCondition(key="uid", match=MatchValue(value=uid)))
 
-        if conditions:
-            query_filter = Filter(must=conditions)
+        should_conditions = None
+        if uid and uid not in ("all", "*"):
+            if uid == "default_user":
+                wearable_uids = ["default_user", "uoCU1OLVdUaEU9IxVSICTbakkiD3"]
+                if hasattr(settings, "default_user_id") and settings.default_user_id not in wearable_uids:
+                    wearable_uids.append(settings.default_user_id)
+                should_conditions = [
+                    FieldCondition(key="uid", match=MatchValue(value=u)) for u in wearable_uids
+                ]
+            else:
+                conditions.append(FieldCondition(key="uid", match=MatchValue(value=uid)))
+
+        if conditions or should_conditions:
+            query_filter = Filter(must=conditions if conditions else None, should=should_conditions)
 
         candidate_limit = max(40, limit * 10)
         search_results = self.client.query_points(
@@ -341,8 +351,16 @@ class QdrantMemoryAgent:
         """
         try:
             scroll_filter = None
-            if uid:
-                scroll_filter = Filter(must=[FieldCondition(key="uid", match=MatchValue(value=uid))])
+            if uid and uid not in ("all", "*"):
+                if uid == "default_user":
+                    wearable_uids = ["default_user", "uoCU1OLVdUaEU9IxVSICTbakkiD3"]
+                    if hasattr(settings, "default_user_id") and settings.default_user_id not in wearable_uids:
+                        wearable_uids.append(settings.default_user_id)
+                    scroll_filter = Filter(should=[
+                        FieldCondition(key="uid", match=MatchValue(value=u)) for u in wearable_uids
+                    ])
+                else:
+                    scroll_filter = Filter(must=[FieldCondition(key="uid", match=MatchValue(value=uid))])
             points, _ = self.client.scroll(
                 collection_name=self.collection_name,
                 scroll_filter=scroll_filter,

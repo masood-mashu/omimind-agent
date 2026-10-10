@@ -94,8 +94,15 @@ export function renderAsk(container, initialQuery = '') {
         </form>
 
         <!-- Suggested Follow-ups & Query History Hydration Rail -->
-        <div class="omi-filter-rail mt-2.5 px-1 items-center">
+        <div class="omi-filter-rail mt-2.5 px-1 items-center flex-wrap gap-2">
+          <button type="button" id="btn-ask-type" class="touch-target-44 px-3 py-1.5 rounded-lg bg-indigo-950/60 hover:bg-indigo-900/70 text-indigo-300 hover:text-white border border-indigo-500/30 transition text-xs whitespace-nowrap flex items-center gap-1.5" title="Type note or memo directly to memory">
+            <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            <span>+ Type Note</span>
+          </button>
           <span class="text-slate-400 text-[11px] font-medium flex-shrink-0">Suggestions:</span>
+          <button type="button" class="ask-suggest-chip touch-target-44 px-3 py-1.5 rounded-lg bg-indigo-950/40 hover:bg-indigo-900/50 text-cyan-300 hover:text-white border border-cyan-500/30 transition text-xs whitespace-nowrap" data-query="What budget was approved for Project Horizon?">
+            "What budget was approved for Project Horizon?"
+          </button>
           <button type="button" class="ask-suggest-chip touch-target-44 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-white/10 transition text-xs whitespace-nowrap" data-query="What did I say about Project Nebula?">
             "What did I say about Project Nebula?"
           </button>

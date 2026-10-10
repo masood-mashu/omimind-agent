@@ -71,6 +71,9 @@ export function renderHome(container) {
           <!-- Prompt Pills -->
           <div class="flex flex-wrap items-center justify-center gap-2 mt-3.5 text-xs">
             <span class="text-slate-400 text-[11px] font-medium mr-1">Try asking:</span>
+            <button type="button" class="home-pill px-3 py-1.5 rounded-lg bg-indigo-950/50 hover:bg-indigo-900/60 text-cyan-300 hover:text-white border border-cyan-500/30 transition" data-query="What budget was approved for Project Horizon?">
+              "What budget was approved for Project Horizon?"
+            </button>
             <button type="button" class="home-pill px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-white/10 transition" data-query="What did I say about Project Nebula?">
               "What did I say about Project Nebula?"
             </button>
@@ -101,7 +104,11 @@ export function renderHome(container) {
               </p>
             </div>
           </div>
-          <div class="flex items-center gap-2.5">
+          <div class="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+            <button id="btn-home-type" type="button" class="touch-target-44 px-3.5 py-2 rounded-xl bg-indigo-950/50 hover:bg-indigo-900/60 text-xs font-semibold text-indigo-300 hover:text-white border border-indigo-500/30 flex items-center gap-2 transition" title="Type notes or meeting data directly">
+              <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+              <span>Type Note</span>
+            </button>
             <button id="btn-home-mic" type="button" class="touch-target-44 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-300 border border-white/10 flex items-center gap-2 transition">
               <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z"/></svg>
               <span id="home-mic-text">Record Voice</span>
@@ -114,6 +121,31 @@ export function renderHome(container) {
         <!-- Live Waveform strip -->
         <div class="mt-4 pt-3 border-t border-white/5">
           <canvas id="ambient-waveform" width="800" height="36" class="w-full h-9 rounded-lg"></canvas>
+        </div>
+
+        <!-- Dedicated Direct Typing Input Box -->
+        <div class="mt-4 pt-3.5 border-t border-white/5">
+          <form id="home-inline-ingest-form" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+            <div class="flex items-center gap-2 text-xs text-indigo-300 font-mono-tech flex-shrink-0">
+              <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
+              <span>Direct Ingest:</span>
+            </div>
+            <input 
+              id="home-inline-type-input" 
+              type="text" 
+              placeholder="Type note, memo, or decision directly to vectorize into Qdrant (Press Enter)..." 
+              autocomplete="off"
+              class="flex-1 bg-slate-900/90 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 font-mono-tech transition"
+            />
+            <button 
+              type="submit" 
+              id="btn-home-inline-submit"
+              class="touch-target-44 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs shadow-md transition flex items-center justify-center gap-1.5 flex-shrink-0"
+            >
+              <span>Index Note</span>
+              <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+            </button>
+          </form>
         </div>
       </section>
 
@@ -218,6 +250,58 @@ export function renderHome(container) {
       } finally {
         syncBtn.disabled = false;
         syncBtn.innerText = 'Refresh Memory';
+      }
+    });
+  }
+
+  const inlineForm = container.querySelector('#home-inline-ingest-form');
+  const inlineInput = container.querySelector('#home-inline-type-input');
+  const inlineSubmit = container.querySelector('#btn-home-inline-submit');
+  if (inlineForm && inlineInput) {
+    inlineForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const text = inlineInput.value.trim();
+      if (!text) {
+        showToast('Please enter note or memo text to vectorize.', 'warning');
+        return;
+      }
+      if (inlineSubmit) {
+        inlineSubmit.disabled = true;
+        inlineSubmit.innerHTML = `
+          <span class="w-3 h-3 rounded-full border-2 border-white/20 border-t-white animate-spin"></span>
+          <span>Indexing...</span>
+        `;
+      }
+      try {
+        await api.streamPipeline('/api/custom-voice-stream', {
+          transcript: text,
+          speaker: 'User',
+          title: 'Direct Quick Note'
+        }, {
+          onComplete: async (dossier) => {
+            showToast('Note vectorized and indexed into Qdrant memory!');
+            inlineInput.value = '';
+            const memData = await api.fetchMemories(30);
+            state.memories = memData.memories || [];
+            const memoriesList = container.querySelector('#home-memories-list');
+            if (memoriesList) {
+              memoriesList.innerHTML = renderMemoriesPreview(state.memories);
+            }
+          },
+          onError: (err) => {
+            showToast('Indexing error: ' + (err.message || 'Failed'), 'warning');
+          }
+        });
+      } catch (err) {
+        showToast('Submission error: ' + err.message, 'warning');
+      } finally {
+        if (inlineSubmit) {
+          inlineSubmit.disabled = false;
+          inlineSubmit.innerHTML = `
+            <span>Index Note</span>
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+          `;
+        }
       }
     });
   }

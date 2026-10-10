@@ -23,7 +23,7 @@ from backend.schemas.api_models import (
     MAX_TRANSCRIPT_LENGTH,
     OmiWebhookRequest,
 )
-from backend.shared import cache_processed, orchestrator, parse_transcript
+from backend.shared import cache_processed, orchestrator, parse_transcript, register_wearable_uid
 from backend.webhook_inbox import default_webhook_inbox
 
 logger = logging.getLogger("omimind.webhooks")
@@ -220,6 +220,9 @@ def omi_conversation_webhook(
     Ingests transcript segments and guarantees single-pass indexing under authenticated UID.
     Includes idempotency protection and collision-safe session identifiers.
     """
+    # Dynamically register incoming wearable identity
+    register_wearable_uid(user.uid)
+
     # Validate and normalize before recording an event as processed.
     event_id = None
     if isinstance(payload, dict):
@@ -311,6 +314,7 @@ def omi_realtime_webhook(
         raise HTTPException(status_code=422, detail=f"Segments count exceeds limit of {MAX_SEGMENTS_COUNT}")
 
     actual_session = session_id or f"realtime_{user.uid}_{uuid.uuid4().hex[:8]}"
+    register_wearable_uid(user.uid)
     payload_event_id = _extract_realtime_event_id(payload)
     payload_hash = hashlib.sha256(
         json.dumps(payload, sort_keys=True, default=str).encode("utf-8")

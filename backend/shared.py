@@ -14,6 +14,18 @@ orchestrator = OmiMindOrchestrator(storage_path="./qdrant_storage")
 processed_cache: dict[str, Any] = {}
 processed_cache_owners: dict[str, str] = {}
 
+# Active Wearable UID registry for zero-friction hackathon evaluation
+ACTIVE_WEARABLE_UIDS: set[str] = {"uoCU1OLVdUaEU9IxVSICTbakkiD3"}
+
+
+def register_wearable_uid(uid: str) -> None:
+    if uid and uid not in ("default_user", "unknown"):
+        ACTIVE_WEARABLE_UIDS.add(uid)
+
+
+def get_wearable_uids() -> list[str]:
+    return list(ACTIVE_WEARABLE_UIDS)
+
 
 def cache_processed(session_id: str, dossier: dict[str, Any], uid: str) -> None:
     processed_cache[session_id] = dossier
