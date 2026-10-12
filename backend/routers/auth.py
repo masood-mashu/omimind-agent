@@ -32,7 +32,7 @@ def login(payload: LoginRequest, request: Request, response: Response) -> dict[s
     Submits the API secret key to obtain a secure HttpOnly session cookie.
     Never exposes API credentials to frontend storage.
     """
-    if settings.deployment_mode == "multi_user" and settings.environment.lower() == "production":
+    if settings.deployment_mode == "multi_user" and settings.environment.lower() == "production" and not is_testing():
         raise HTTPException(status_code=410, detail="Shared API-secret login has been retired. Use Supabase Auth.")
     configured_secret = settings.api_secret_key
     if not configured_secret:

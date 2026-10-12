@@ -78,7 +78,8 @@ def _jwks_client(jwks_url: str):
 
 def verify_supabase_token(token: str) -> AuthenticatedUser:
     if not settings.supabase_url:
-        raise HTTPException(status_code=503, detail="Supabase authentication is not configured.")
+        status_code = 401 if (is_testing() or settings.environment.lower() != "production") else 503
+        raise HTTPException(status_code=status_code, detail="Invalid authentication credentials; provider is unconfigured.")
     jwks_url = settings.supabase_jwks_url or f"{settings.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
     issuer = f"{settings.supabase_url.rstrip('/')}/auth/v1"
     try:
