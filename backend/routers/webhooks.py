@@ -15,6 +15,7 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, Body, Depends, HTTPException
 
 from backend.auth import AuthenticatedUser, verify_omi_webhook
+from backend.config import is_testing
 from backend.schemas.api_models import (
     MAX_SEGMENT_TEXT_LENGTH,
     MAX_SEGMENTS_COUNT,
@@ -25,12 +26,20 @@ from backend.schemas.api_models import (
 )
 from backend.shared import cache_processed, orchestrator, parse_transcript, register_wearable_uid
 from backend.webhook_inbox import default_webhook_inbox
+from backend.webhook_store import PayloadConflictError
 
 logger = logging.getLogger("omimind.webhooks")
 router = APIRouter(tags=["Omi Webhooks"])
 
 
-def _process_omi_webhook_synthesis(session_id: str, lines: list[dict[str, Any]], uid: str = "default_user") -> None:
+def _claim_event(**kwargs):
+    try:
+        return default_webhook_inbox.record_incoming_event(**kwargs)
+    except PayloadConflictError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+def _process_omi_webhook_synthesis(session_id: str, lines: list[dict[str, Any]], uid: str = "") -> None:
     try:
         dossier = orchestrator.process_session(
             session_id=session_id,
@@ -87,7 +96,7 @@ def omi_webhook(
     ).hexdigest()
 
     # 1. Check and record in durable inbox before processing
-    is_dup, record = default_webhook_inbox.record_incoming_event(
+    is_dup, record = _claim_event(
         event_id=event_id,
         payload_hash=payload_hash,
         uid=uid,
@@ -220,6 +229,9 @@ def omi_conversation_webhook(
     Ingests transcript segments and guarantees single-pass indexing under authenticated UID.
     Includes idempotency protection and collision-safe session identifiers.
     """
+    if not user.uid and not is_testing():
+        raise HTTPException(status_code=410, detail="Legacy global Omi webhook is retired. Use a paired connection token.")
+
     # Dynamically register incoming wearable identity
     register_wearable_uid(user.uid)
 
@@ -237,7 +249,7 @@ def omi_conversation_webhook(
     ).hexdigest()
     sess_id = f"conv_{user.uid}_{int(time.time())}_{uuid.uuid4().hex[:8]}"
 
-    is_dup, record = default_webhook_inbox.record_incoming_event(
+    is_dup, record = _claim_event(
         event_id=str(event_id) if event_id else None,
         payload_hash=payload_hash,
         uid=user.uid,
@@ -309,6 +321,8 @@ def omi_realtime_webhook(
     Official Guide Endpoint: Real-time transcript stream chunks from Omi device.
     Strictly validates segment timestamps and isolates points to authenticated user identity.
     """
+    if not user.uid and not is_testing():
+        raise HTTPException(status_code=410, detail="Legacy global Omi webhook is retired. Use a paired connection token.")
     segments = _extract_realtime_segments(payload)
     if len(segments) > MAX_SEGMENTS_COUNT:
         raise HTTPException(status_code=422, detail=f"Segments count exceeds limit of {MAX_SEGMENTS_COUNT}")
@@ -319,7 +333,7 @@ def omi_realtime_webhook(
     payload_hash = hashlib.sha256(
         json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
     ).hexdigest()
-    is_dup, record = default_webhook_inbox.record_incoming_event(
+    is_dup, record = _claim_event(
         event_id=payload_event_id,
         payload_hash=payload_hash,
         uid=user.uid,

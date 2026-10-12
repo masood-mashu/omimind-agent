@@ -1,5 +1,5 @@
 """
-main.py - Lean FastAPI Application Server for OmiMind Ambient Voice Intelligence.
+main.py - Lean FastAPI Application Server for OMIMIND Ambient Voice Intelligence.
 Exposes REST and SSE endpoints via modular routers for vector memory, agent synthesis, and frontend UI.
 """
 from __future__ import annotations
@@ -22,8 +22,10 @@ from backend.routers import (
     auth_router,
     health_router,
     memory_router,
+    omi_connections_router,
     pipeline_router,
     webhooks_router,
+    workspace_router,
 )
 from backend.schemas.api_models import (
     CustomVoiceRequest,
@@ -49,7 +51,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.app_name,
-    description="Voice Intelligence powered by Omi ambient audio, Qdrant vector memory, and Lyzr multi-agent framework.",
+    description="Multi-user OMIMIND workspace for turning Omi conversations into searchable memory, decisions, actions, and follow-up drafts.",
     version=settings.app_version,
     lifespan=lifespan,
 )
@@ -210,7 +212,9 @@ async def security_and_telemetry_middleware(request: Request, call_next):
 app.include_router(auth_router)
 app.include_router(health_router)
 app.include_router(pipeline_router)
+app.include_router(workspace_router)
 app.include_router(memory_router)
+app.include_router(omi_connections_router)
 app.include_router(webhooks_router)
 
 # ─── Favicon & Frontend Static Files ──────────────────────────────────────────

@@ -27,6 +27,9 @@ jobs:
       run: |
         ruff check .
 
+    - name: Audit frontend for server-side secrets
+      run: python scripts/check_frontend_secrets.py
+
   test:
     name: Test Suite & Coverage Gate
     needs: lint

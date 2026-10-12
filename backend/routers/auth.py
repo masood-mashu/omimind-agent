@@ -1,7 +1,7 @@
 """
 backend/routers/auth.py
-Minimal session login/logout endpoints for single-user hackathon deployment.
-Issues and clears HttpOnly, SameSite session cookies.
+Supabase owns browser signup, verification, login, and refresh. These routes
+expose safe configuration and retain a local-only legacy login for fixtures.
 """
 from __future__ import annotations
 
@@ -32,6 +32,8 @@ def login(payload: LoginRequest, request: Request, response: Response) -> dict[s
     Submits the API secret key to obtain a secure HttpOnly session cookie.
     Never exposes API credentials to frontend storage.
     """
+    if settings.deployment_mode == "multi_user" and settings.environment.lower() == "production":
+        raise HTTPException(status_code=410, detail="Shared API-secret login has been retired. Use Supabase Auth.")
     configured_secret = settings.api_secret_key
     if not configured_secret:
         raise HTTPException(status_code=503, detail="API authentication is not configured.")
@@ -41,7 +43,7 @@ def login(payload: LoginRequest, request: Request, response: Response) -> dict[s
         raise HTTPException(status_code=401, detail="Invalid API secret key.")
 
     # Create signed session token for the server-derived default user
-    session_token = create_session_token(settings.default_user_id, configured_secret)
+    session_token = create_session_token(settings.default_user_id or "local-user", configured_secret)
 
     # Secure cookie configuration
     # In production, require HTTPS/Secure unless running within local test harnesses.
@@ -60,7 +62,8 @@ def login(payload: LoginRequest, request: Request, response: Response) -> dict[s
     return {
         "success": True,
         "message": "Authenticated successfully",
-        "uid": settings.default_user_id,
+        "uid": settings.default_user_id or "local-user",
+        "deprecated": True,
     }
 
 
@@ -80,6 +83,7 @@ def auth_status(request: Request) -> dict[str, Any]:
             "authenticated": True,
             "uid": user.uid,
             "auth_type": user.auth_type,
+            "email": user.email,
         }
     except HTTPException:
         return {
@@ -87,3 +91,14 @@ def auth_status(request: Request) -> dict[str, Any]:
             "uid": None,
             "auth_type": None,
         }
+
+
+@router.get("/config")
+def auth_config() -> dict[str, Any]:
+    """Return only browser-safe Supabase configuration."""
+    return {
+        "provider": "supabase",
+        "supabase_url": settings.supabase_url,
+        "publishable_key": settings.supabase_publishable_key,
+        "deployment_mode": settings.deployment_mode,
+    }

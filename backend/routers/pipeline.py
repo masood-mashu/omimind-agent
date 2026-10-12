@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import uuid
@@ -7,13 +8,64 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 
+from agents.lyzr_client import LyzrResult
 from backend.auth import AuthenticatedUser, get_current_user
 from backend.mock_data import DEMO_MEETINGS
 from backend.schemas.api_models import CustomVoiceRequest, ProcessRequest
 from backend.shared import cache_processed, orchestrator, parse_transcript
+from backend.tenant_store import tenant_store
 
 logger = logging.getLogger("omimind.pipeline")
 router = APIRouter(tags=["pipeline"])
+
+
+def _process_sync_swarm(session_id: str, title: str, lines: list[dict], uid: str) -> dict[str, Any]:
+    run_id = tenant_store.create_run(uid, session_id, title)
+    try:
+        tenant_store.append_event(uid, run_id, {"type": "run_started", "status": "running", "session_id": session_id, "title": title, "execution_source": "actual_backend"})
+        indexed_points = [
+            orchestrator.memory.index_utterance(
+                session_id=session_id,
+                speaker=line.get("speaker", "Speaker"),
+                text=line.get("text", ""),
+                timestamp=float(index * 15),
+                timestamp_str=line.get("timestamp_str", f"00:{index * 15:02d}"),
+                topic=line.get("topic", "general"),
+                urgency=line.get("urgency", "normal"),
+                uid=uid,
+            )
+            for index, line in enumerate(lines)
+        ]
+        context = orchestrator.memory.search_memory(query=f"Meeting intelligence for {title}", limit=min(8, max(1, len(lines))), uid=uid)
+        traces = asyncio.run(orchestrator.swarm.run(uid=uid, title=title, transcript=lines, retrieved_context=context))
+        for trace in traces:
+            tenant_store.append_event(uid, run_id, {
+                "type": "agent_output", "role": trace.role, "agent": trace.role,
+                "agent_id": trace.agent_id, "status": trace.status, "provider": trace.provider,
+                "execution_source": trace.execution_source, "latency_ms": trace.latency_ms,
+                "started_at": trace.started_at, "completed_at": trace.completed_at,
+                "input_summary": trace.input_summary, "evidence_ids": trace.evidence_ids or [],
+                "output": trace.result.text[:3000] if trace.result.text else None, "error": trace.result.error,
+            })
+        manager = next((trace for trace in traces if trace.role == "manager"), None)
+        manager_text = manager.result.text if manager and manager.provider == "lyzr_studio_cloud" else ""
+        summary, action_items = orchestrator.reconcile_meeting_intelligence(lyzr_text=manager_text, title=title, transcript_lines=lines)
+        provider = manager.provider if manager else "unconfigured"
+        dossier = {
+            "session_id": session_id, "title": title, "indexed_vectors_count": len(indexed_points),
+            "summary": summary, "action_items": action_items,
+            "email_draft": orchestrator.dispatcher.generate_followup_email(summary, action_items),
+            "jira_tickets": orchestrator.dispatcher.generate_jira_tickets(action_items),
+            "calendar_events": orchestrator.scheduler.extract_calendar_events(lines),
+            "transcript_lines": lines,
+            "reasoning": {"provider": provider, "agent_id": manager.agent_id if manager else None, "response": manager_text, "error": manager.result.error if manager else "Manager trace unavailable", "agents": [{"role": trace.role, "agent_id": trace.agent_id, "status": trace.status, "provider": trace.provider, "execution_source": trace.execution_source, "latency_ms": trace.latency_ms, "output": trace.result.text, "error": trace.result.error} for trace in traces]},
+        }
+        tenant_store.complete_run(uid, run_id, dossier, provider=provider, transcript_lines=lines)
+        cache_processed(session_id, dossier, uid)
+        return dossier
+    except Exception as exc:
+        tenant_store.fail_run(uid, run_id, str(exc))
+        raise
 
 
 @router.post("/api/process")
@@ -41,14 +93,7 @@ def process_meeting(req: ProcessRequest, user: AuthenticatedUser = Depends(get_c
     title = str(meeting["title"])
     transcript_lines: list[dict[str, Any]] = meeting.get("lines", [])
     try:
-        dossier = orchestrator.process_session(
-            session_id=session_id,
-            title=title,
-            transcript_lines=transcript_lines,
-            uid=user.uid,
-            index_memory=True,
-        )
-        cache_processed(session_id, dossier, user.uid)
+        dossier = _process_sync_swarm(session_id, title, transcript_lines, user.uid)
         return dossier
     except Exception as exc:
         logger.error(f"Process meeting error: {exc}")
@@ -70,17 +115,27 @@ async def _stream_pipeline(
     session_id: str,
     title: str,
     lines: list[dict],
-    uid: str = "default_user",
+    uid: str = "",
 ) -> AsyncGenerator[str, None]:
     """Yields SSE events for each agent stage so the frontend can animate them."""
 
     def sse(data: dict) -> str:
+        data.setdefault("execution_source", "actual_backend")
         return f"data: {json.dumps(data)}\n\n"
 
+    run_id = tenant_store.create_run(uid, session_id, title)
+
+    def emit(data: dict[str, Any]) -> str:
+        data.setdefault("run_id", run_id)
+        data.setdefault("execution_source", "actual_backend")
+        tenant_store.append_event(uid, run_id, data)
+        return sse(data)
+
     try:
+        yield emit({"type": "run_started", "status": "running", "session_id": session_id, "title": title, "message": "Meeting run started."})
         emb_health = getattr(orchestrator.memory.embedding_model, "check_health", lambda: {"status": "ready"})()
         if emb_health.get("status") != "ready":
-            yield sse({
+            yield emit({
                 "type": "error",
                 "stage": 1,
                 "agent": "MemoryAgent",
@@ -88,10 +143,11 @@ async def _stream_pipeline(
                 "status": "error",
                 "message": "Semantic embedding provider is currently degraded or unavailable.",
             })
+            tenant_store.fail_run(uid, run_id, "Semantic embedding provider unavailable")
             return
 
         # Stage 1: Memory / Qdrant indexing
-        yield sse({
+        yield emit({
             "stage": 1,
             "agent": "MemoryAgent",
             "stage_name": "Qdrant Memory Indexing",
@@ -113,7 +169,7 @@ async def _stream_pipeline(
             )
             indexed_points.append(p_id)
 
-        yield sse({
+        yield emit({
             "stage": 1,
             "agent": "MemoryAgent",
             "stage_name": "Qdrant Memory Indexing",
@@ -123,7 +179,7 @@ async def _stream_pipeline(
         })
 
         # Stage 2: Qdrant Retrieval
-        yield sse({
+        yield emit({
             "stage": 2,
             "agent": "QdrantRetrieval",
             "stage_name": "Qdrant Retrieval",
@@ -135,7 +191,7 @@ async def _stream_pipeline(
             limit=min(8, max(1, len(lines))),
             uid=uid,
         )
-        yield sse({
+        yield emit({
             "stage": 2,
             "agent": "QdrantRetrieval",
             "stage_name": "Qdrant Retrieval",
@@ -144,31 +200,63 @@ async def _stream_pipeline(
             "count": len(retrieved_context),
         })
 
-        # Stage 3: Lyzr Manager Reasoning (Non-blocking async call)
-        yield sse({
+        # Stage 3: observable role-specific Lyzr swarm.
+        yield emit({
             "stage": 3,
-            "agent": "LyzrManager",
-            "stage_name": "Configured Lyzr Manager",
+            "agent": "LyzrSwarm",
+            "stage_name": "Lyzr multi-agent reasoning",
             "status": "running",
-            "message": "Invoking Configured Lyzr Manager (delegation depends on Lyzr Studio configuration)...",
+            "message": "Running memory recall, meeting analysis, action extraction, manager synthesis, and follow-up planning.",
+            "provider": "pending",
         })
-        lyzr_result = await orchestrator.lyzr.areason(
-            uid=uid,
-            question="Produce grounded meeting intelligence from the supplied transcript context.",
-            context=retrieved_context,
-        )
-        yield sse({
-            "stage": 3,
-            "agent": "LyzrManager",
-            "stage_name": "Configured Lyzr Manager",
-            "status": "done",
-            "message": f"Reasoning provider: {lyzr_result.provider}.",
-            "provider": lyzr_result.provider,
-            "error": lyzr_result.error,
-        })
+        traces = []
+        for role in ("memory_recall", "meeting_analyst", "action_extractor", "manager", "followup_planner"):
+            yield emit({"type": "agent_started", "stage": 3, "role": role, "agent": role, "status": "running", "message": f"Starting {role.replace('_', ' ').title()} agent."})
+        async for trace in orchestrator.swarm.stream(uid=uid, title=title, transcript=lines, retrieved_context=retrieved_context):
+            traces.append(trace)
+            yield emit({
+                "type": "agent_output",
+                "stage": 3,
+                "role": trace.role,
+                "agent": trace.role,
+                "agent_id": trace.agent_id,
+                "status": trace.status,
+                "provider": trace.provider,
+                "execution_source": trace.execution_source,
+                "started_at": trace.started_at,
+                "completed_at": trace.completed_at,
+                "latency_ms": trace.latency_ms,
+                "input_summary": trace.input_summary,
+                "evidence_ids": trace.evidence_ids or [],
+                "output": trace.result.text[:3000] if trace.result.text else None,
+                "error": trace.result.error,
+            })
+            yield emit({
+                "type": "agent_completed" if trace.status == "completed" else "agent_failed",
+                "stage": 3,
+                "role": trace.role,
+                "agent": trace.role,
+                "agent_id": trace.agent_id,
+                "status": trace.status,
+                "provider": trace.provider,
+                "execution_source": trace.execution_source,
+                "latency_ms": trace.latency_ms,
+                "output": trace.result.text[:3000] if trace.result.text else None,
+                "error": trace.result.error,
+                "message": f"{trace.role.replace('_', ' ').title()} {trace.status} via {trace.provider}.",
+            })
+        trace_by_role = {trace.role: trace for trace in traces}
+        manager_trace = trace_by_role.get("manager")
+        lyzr_result = manager_trace.result if manager_trace else LyzrResult(text="", provider="unconfigured", agent_id=None, error="Manager trace unavailable")
+        manager_text = lyzr_result.text if hasattr(lyzr_result, "text") and lyzr_result.provider == "lyzr_studio_cloud" else ""
+        manager_provider = lyzr_result.provider if hasattr(lyzr_result, "provider") else "deterministic_fallback"
+        manager_agent_id = lyzr_result.agent_id if hasattr(lyzr_result, "agent_id") else None
+        manager_error = lyzr_result.error if hasattr(lyzr_result, "error") else "Manager trace unavailable"
+        swarm_ok = manager_provider == "lyzr_studio_cloud"
+        yield emit({"type": "agent_completed" if swarm_ok else "agent_failed", "stage": 3, "agent": "LyzrSwarm", "status": "completed" if swarm_ok else "failed", "provider": manager_provider, "execution_source": "actual_backend" if swarm_ok else "deterministic_fallback", "error": None if swarm_ok else manager_error, "message": "Lyzr swarm trace complete." if swarm_ok else "Lyzr provider unavailable; deterministic fallback is clearly marked."})
 
         # Stage 4: Deterministic Normalization & Validation
-        yield sse({
+        yield emit({
             "stage": 4,
             "agent": "ActionExtractor",
             "stage_name": "Deterministic Normalization & Validation",
@@ -177,14 +265,14 @@ async def _stream_pipeline(
         })
 
         summary, action_items = orchestrator.reconcile_meeting_intelligence(
-            lyzr_text=lyzr_result.text if lyzr_result.provider == "lyzr_studio_cloud" else "",
+            lyzr_text=manager_text,
             title=title,
             transcript_lines=lines,
         )
         decisions_found = len([d for d in summary.get("key_decisions", []) if "Consensus" not in d])
         risks_found = len([r for r in summary.get("risks_and_blockers", []) if "No critical" not in r])
 
-        yield sse({
+        yield emit({
             "stage": 4,
             "agent": "ActionExtractor",
             "stage_name": "Deterministic Normalization & Validation",
@@ -194,7 +282,7 @@ async def _stream_pipeline(
         })
 
         # Stage 5: User-controlled Draft Outputs
-        yield sse({
+        yield emit({
             "stage": 5,
             "agent": "TaskDispatcher",
             "stage_name": "User-controlled Draft Outputs",
@@ -206,7 +294,7 @@ async def _stream_pipeline(
         jira_tickets = orchestrator.dispatcher.generate_jira_tickets(action_items)
         calendar_events = orchestrator.scheduler.extract_calendar_events(lines)
 
-        yield sse({
+        yield emit({
             "stage": 5,
             "agent": "TaskDispatcher",
             "stage_name": "User-controlled Draft Outputs",
@@ -226,24 +314,37 @@ async def _stream_pipeline(
             "jira_tickets": jira_tickets,
             "calendar_events": calendar_events,
             "reasoning": {
-                "provider": lyzr_result.provider,
-                "agent_id": lyzr_result.agent_id,
-                "response": lyzr_result.text,
-                "error": lyzr_result.error,
+                "provider": manager_provider,
+                "agent_id": manager_agent_id,
+                "response": manager_text,
+                "error": manager_error,
+                "agents": [
+                    {"role": trace.role, "agent_id": trace.agent_id, "status": trace.status, "provider": trace.provider, "execution_source": trace.execution_source, "latency_ms": trace.latency_ms, "started_at": trace.started_at, "completed_at": trace.completed_at, "input_summary": trace.input_summary, "evidence_ids": trace.evidence_ids or [], "output": trace.result.text, "error": trace.result.error}
+                    for trace in traces
+                ],
             },
         }
+        dossier["transcript_lines"] = lines
         cache_processed(session_id, dossier, uid)
-        yield sse({"type": "complete", "dossier": dossier})
+        tenant_store.complete_run(uid, run_id, dossier, provider=manager_provider, transcript_lines=lines)
+        yield emit({"type": "pipeline_completed", "status": "completed", "dossier": dossier})
 
     except Exception as exc:
+        try:
+            tenant_store.fail_run(uid, run_id, str(exc))
+        except Exception:
+            logger.exception("Failed to persist failed pipeline run %s", run_id)
         logger.error(f"Pipeline execution failed: {exc}")
-        yield sse({
-            "type": "error",
-            "agent": "PipelineCoordinator",
-            "status": "error",
-            "message": "Pipeline processing failed during execution.",
-            "detail": "Memory or processing service encountered an error.",
-        })
+        try:
+            yield emit({
+                "type": "error",
+                "agent": "PipelineCoordinator",
+                "status": "error",
+                "message": "Pipeline processing failed during execution.",
+                "detail": "Memory or processing service encountered an error.",
+            })
+        except Exception:
+            logger.exception("Failed to persist pipeline error event %s", run_id)
 
 
 @router.post("/api/process-stream")
@@ -286,12 +387,5 @@ def ingest_custom_voice(req: CustomVoiceRequest, user: AuthenticatedUser = Depen
     title = req.title
     if title == "Live Omi Voice Memo" and len(detected_speakers) > 1:
         title = "Multi-Stakeholder Operational Sync"
-    dossier = orchestrator.process_session(
-        session_id=session_id,
-        title=title,
-        transcript_lines=lines,
-        uid=user.uid,
-        index_memory=True,
-    )
-    cache_processed(session_id, dossier, user.uid)
+    dossier = _process_sync_swarm(session_id, title, lines, user.uid)
     return dossier

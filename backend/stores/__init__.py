@@ -1,0 +1,1 @@
+"""Webhook inbox storage adapters."""

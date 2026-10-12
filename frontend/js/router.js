@@ -1,5 +1,5 @@
 /**
- * router.js - Client-Side Hash Router for OmiMind 2.0
+ * router.js - Client-Side Hash Router for OMIMIND 2.0
  */
 
 import { renderHome } from './views/home.js';
@@ -9,6 +9,8 @@ import { renderMeetingDetail } from './views/meeting_detail.js';
 import { renderMemory } from './views/memory.js';
 import { renderActions } from './views/actions.js';
 import { renderActivity } from './views/activity.js';
+import { renderOmi } from './views/omi.js';
+import { renderAccount } from './views/account.js';
 import { updateNavActive } from './components/nav.js';
 
 export function navigate(path) {
@@ -44,6 +46,10 @@ export function handleRoute() {
     renderActions(mainContainer);
   } else if (baseRoute === 'activity') {
     renderActivity(mainContainer);
+  } else if (baseRoute === 'omi') {
+    renderOmi(mainContainer);
+  } else if (baseRoute === 'account') {
+    renderAccount(mainContainer);
   } else {
     renderHome(mainContainer);
   }

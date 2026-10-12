@@ -1,4 +1,4 @@
-# OmiMind End-to-End Sequence Diagram
+# OMIMIND End-to-End Sequence Diagram
 
 This sequence details chronological interactions across the Omi wearable, FastAPI ingestion, Qdrant vector memory, Lyzr Manager reasoning (with live SSE updates), and deterministic user-controlled outputs.
 
@@ -9,14 +9,14 @@ sequenceDiagram
     participant Omi as Omi Wearable / Microphone
     participant UI as Live Web Dashboard
     participant API as FastAPI Application
-    participant Orch as OmiMindOrchestrator
+    participant Orch as OMIMINDOrchestrator
     participant Q as Qdrant Cloud (`omi_ambient_memory`)
     participant Studio as Lyzr Studio Cloud
     participant Ext as Google Meet / Gmail / Jira
 
     Note over User,Omi: Phase 1: Ambient Audio & Diarisation
     User->>Omi: Live conversation / Voice memo
-    Omi->>API: POST /omi/conversation or /api/omi-webhook
+    Omi->>API: POST /omi/conversation/{connection_token} or /omi/realtime/{connection_token}
     API-->>Omi: HTTP 200 OK (< 50ms fast-ack)
 
     Note over API,Q: Phase 2: Vector Memory & Lyzr Manager Reasoning

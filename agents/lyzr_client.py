@@ -67,7 +67,7 @@ class LyzrClient:
             classified = classified.replace(self.api_key, "[REDACTED]")
         return classified
 
-    def _build_payload(self, uid: str, question: str, context: list[dict[str, Any]]) -> dict[str, Any]:
+    def _build_payload(self, uid: str, question: str, context: list[dict[str, Any]], agent_id: str | None = None) -> dict[str, Any]:
         context_text = "\n".join(
             f"- [{item.get('speaker', 'Speaker')} @ {item.get('timestamp_str', 'unknown')}] "
             f"{item.get('text', '')}"
@@ -77,10 +77,11 @@ class LyzrClient:
         # Consistent user identity: Use authenticated uid directly to preserve tenant isolation
         effective_user_id = uid if uid else (os.environ.get("LYZR_USER_ID") or "default_user")
 
+        effective_agent_id = agent_id or self.agent_id
         return {
             "user_id": effective_user_id,
-            "agent_id": self.agent_id,
-            "session_id": f"{self.agent_id}-{effective_user_id}",
+            "agent_id": effective_agent_id,
+            "session_id": f"{effective_agent_id}-{effective_user_id}",
             "message": (
                 "CONTEXT:\n"
                 f"{context_text}\n\n"
@@ -89,20 +90,21 @@ class LyzrClient:
             ),
         }
 
-    async def areason(self, *, uid: str, question: str, context: list[dict[str, Any]]) -> LyzrResult:
+    async def areason(self, *, uid: str, question: str, context: list[dict[str, Any]], agent_id: str | None = None) -> LyzrResult:
         """
         Asynchronous non-blocking Lyzr inference with connection/read timeouts,
         bounded retries, and honest provider classification.
         """
-        if not self.configured:
+        target_agent_id = agent_id or self.agent_id
+        if not self.api_key or not target_agent_id:
             return LyzrResult(
                 text="",
                 provider="unconfigured",
-                agent_id=self.agent_id,
-                error="LYZR_API_KEY and a Manager/agent ID are required for Lyzr reasoning",
+                agent_id=target_agent_id,
+                error="LYZR_API_KEY and the configured role agent ID are required for Lyzr reasoning",
             )
 
-        payload = self._build_payload(uid, question, context)
+        payload = self._build_payload(uid, question, context, target_agent_id)
         headers = {"Content-Type": "application/json", "x-api-key": self.api_key}
         timeout_cfg = httpx.Timeout(timeout=self.timeout, connect=self.connect_timeout, read=self.timeout)
 
@@ -119,7 +121,7 @@ class LyzrClient:
                     return LyzrResult(
                         text=text.strip(),
                         provider="lyzr_studio_cloud",
-                        agent_id=self.agent_id,
+                        agent_id=target_agent_id,
                     )
             except httpx.HTTPStatusError as exc:
                 last_error = self._sanitize_error(exc)
@@ -136,24 +138,25 @@ class LyzrClient:
         return LyzrResult(
             text="",
             provider="lyzr_error",
-            agent_id=self.agent_id,
+            agent_id=target_agent_id,
             error=last_error,
         )
 
-    def reason(self, *, uid: str, question: str, context: list[dict[str, Any]]) -> LyzrResult:
+    def reason(self, *, uid: str, question: str, context: list[dict[str, Any]], agent_id: str | None = None) -> LyzrResult:
         """
         Synchronous inference with bounded retries and timeout enforcement.
         Does not block the async event loop if called in worker thread.
         """
-        if not self.configured:
+        target_agent_id = agent_id or self.agent_id
+        if not self.api_key or not target_agent_id:
             return LyzrResult(
                 text="",
                 provider="unconfigured",
-                agent_id=self.agent_id,
-                error="LYZR_API_KEY and a Manager/agent ID are required for Lyzr reasoning",
+                agent_id=target_agent_id,
+                error="LYZR_API_KEY and the configured role agent ID are required for Lyzr reasoning",
             )
 
-        payload = self._build_payload(uid, question, context)
+        payload = self._build_payload(uid, question, context, target_agent_id)
         headers = {"Content-Type": "application/json", "x-api-key": self.api_key}
         timeout_cfg = httpx.Timeout(timeout=self.timeout, connect=self.connect_timeout, read=self.timeout)
 
@@ -169,7 +172,7 @@ class LyzrClient:
                 return LyzrResult(
                     text=text.strip(),
                     provider="lyzr_studio_cloud",
-                    agent_id=self.agent_id,
+                    agent_id=target_agent_id,
                 )
             except httpx.HTTPStatusError as exc:
                 last_error = self._sanitize_error(exc)
@@ -185,6 +188,6 @@ class LyzrClient:
         return LyzrResult(
             text="",
             provider="lyzr_error",
-            agent_id=self.agent_id,
+            agent_id=target_agent_id,
             error=last_error,
         )

@@ -5,8 +5,10 @@
  * Layer 2: Developer telemetry (collapsed by default) with raw SSE events and system diagnostics.
  */
 
-import { getState } from '../state.js';
+import { getState, subscribe } from '../state.js';
 import * as api from '../api.js';
+
+let stopActivitySubscription = null;
 
 function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, c => ({
@@ -32,7 +34,7 @@ function formatHumanNarrative(event) {
       title: 'Stored in Qdrant Semantic Memory',
       desc: msg || 'Indexed 384-dimensional dense vectors into omi_ambient_memory collection',
       icon: '🧠',
-      badge: 'Qdrant Cloud',
+      badge: 'Vector storage',
       badgeColor: 'text-indigo-300 bg-indigo-950/60 border-indigo-500/30'
     };
   }
@@ -41,7 +43,7 @@ function formatHumanNarrative(event) {
       title: 'Meeting Analyst Synthesized Session',
       desc: msg || 'Generated executive takeaways, confirmed decisions, and identified project risks',
       icon: '📋',
-      badge: 'Meeting Analyst (6ac577cccf263d0b068d001a)',
+      badge: 'Meeting Analyst',
       badgeColor: 'text-sky-300 bg-sky-950/60 border-sky-500/30'
     };
   }
@@ -50,7 +52,7 @@ function formatHumanNarrative(event) {
       title: 'Action Extractor Identified Commitments',
       desc: msg || 'Extracted concrete deliverables, assignees, deadlines, and direct quotes',
       icon: '⚡',
-      badge: 'Action Extractor (6ac578bf4b079480ed4ea5a5)',
+      badge: 'Action Extractor',
       badgeColor: 'text-amber-300 bg-amber-950/60 border-amber-500/30'
     };
   }
@@ -59,7 +61,7 @@ function formatHumanNarrative(event) {
       title: 'Recall Agent Grounded Response',
       desc: msg || 'Retrieved ambient memory vectors and synthesized grounded answer',
       icon: '🔍',
-      badge: 'Recall Agent (6ac2646b367124ed07f49bdd)',
+      badge: 'Memory Recall Agent',
       badgeColor: 'text-purple-300 bg-purple-950/60 border-purple-500/30'
     };
   }
@@ -77,7 +79,7 @@ function formatHumanNarrative(event) {
       title: 'Lyzr Manager Routed Reasoning',
       desc: msg || 'Hierarchical orchestrator evaluated task context and delegated to specialized agent swarm',
       icon: '🤖',
-      badge: 'Manager Agent (6ac5795151dce5f00e746950)',
+      badge: 'Manager Agent',
       badgeColor: 'text-purple-300 bg-purple-950/60 border-purple-500/30'
     };
   }
@@ -91,12 +93,21 @@ function formatHumanNarrative(event) {
 }
 
 export function renderActivity(container) {
+  if (stopActivitySubscription) stopActivitySubscription();
+  stopActivitySubscription = subscribe(() => {
+    if (window.location.hash.slice(1).split('?')[0] === 'activity') renderActivity(container);
+  });
   const state = getState();
   const health = state.health || {};
   const stats = health.qdrant_stats || {};
-  const pointsCount = stats.points_count ?? 'Active';
+  const pointsCount = stats.points_count ?? 'Not loaded';
   const lyzrStatus = health.lyzr_status || {};
   const events = state.pipelineEvents || [];
+  const sourceLabel = source => ({
+    actual_backend: 'Actual backend execution',
+    deterministic_fallback: 'Deterministic local fallback',
+    simulated_demo: 'Simulated demo animation',
+  }[source] || 'Source unavailable');
 
   container.innerHTML = `
     <div class="view-container max-w-5xl mx-auto space-y-8 py-4 px-4 sm:px-6">
@@ -117,7 +128,7 @@ export function renderActivity(container) {
         </div>
         <div class="flex items-center gap-2">
           <span class="px-3 py-1.5 rounded-xl bg-slate-900 border border-white/10 text-xs font-mono-tech text-emerald-400">
-            Provider: Lyzr Studio Cloud
+            ${lyzrStatus.configured ? 'Lyzr Studio configured' : 'Deterministic fallback available'}
           </span>
         </div>
       </div>
@@ -149,7 +160,7 @@ export function renderActivity(container) {
                     <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                       <span class="font-bold text-xs sm:text-sm text-white">${escapeHtml(narrative.title)}</span>
                       <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech border self-start sm:self-auto ${narrative.badgeColor}">
-                        ${escapeHtml(narrative.badge)}
+                        ${escapeHtml(narrative.badge)} · ${escapeHtml(sourceLabel(e.execution_source))}
                       </span>
                     </div>
                     <p class="text-xs text-slate-300 font-sans leading-relaxed">
@@ -174,12 +185,12 @@ export function renderActivity(container) {
           <div class="flex items-center justify-between border-b border-white/5 pb-3">
             <div>
               <h2 class="text-xs font-bold uppercase tracking-wider text-slate-400 font-mono-tech">
-                Configured Lyzr Manager Architecture
+                Architecture illustration
               </h2>
-              <p class="text-xs text-slate-300 mt-0.5">Manager agent invocation (delegation depends on Lyzr Studio configuration)</p>
+              <p class="text-xs text-slate-300 mt-0.5">Role-specific agent invocation with provider status and fallback provenance</p>
             </div>
             <span class="text-xs font-mono-tech px-2.5 py-1 rounded-lg bg-purple-900/40 text-purple-300 border border-purple-500/30">
-              Lyzr Manager: 6ac5795151dce5f00e746950
+              Lyzr Manager: deployment configured
             </span>
           </div>
 
@@ -195,7 +206,7 @@ export function renderActivity(container) {
                 </div>
               </div>
               <span class="text-[11px] font-mono-tech px-2.5 py-1 rounded-lg bg-cyan-900/30 text-cyan-300 border border-cyan-500/30">
-                Webhook: /api/omi-webhook
+                 Webhook: /omi/conversation/{connection_token}
               </span>
             </div>
 
@@ -229,7 +240,7 @@ export function renderActivity(container) {
                   </div>
                 </div>
                 <span class="text-[11px] font-mono-tech px-2.5 py-1 rounded-lg bg-purple-900/40 text-purple-300 border border-purple-500/30">
-                  Manager: 6ac5795151dce5f00e746950
+                  Manager: server-side configuration
                 </span>
               </div>
 
@@ -240,13 +251,13 @@ export function renderActivity(container) {
                 <div class="p-3.5 rounded-lg bg-slate-900/80 border border-white/5 space-y-1">
                   <div class="flex items-center justify-between">
                     <span class="font-bold text-xs text-cyan-300">Recall Agent</span>
-                    <span class="text-[9px] font-mono-tech px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-400">ACTIVE</span>
+                    <span class="text-[9px] font-mono-tech px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-400">Listed</span>
                   </div>
                   <p class="text-[11px] text-slate-300 leading-snug">
                     Grounds conversational queries against raw Qdrant ambient memories.
                   </p>
                   <div class="text-[10px] text-slate-400 font-mono-tech pt-1">
-                    Agent ID: 6ac2646b367124ed07f49bdd
+                    Agent ID: server-side configuration
                   </div>
                 </div>
 
@@ -254,13 +265,13 @@ export function renderActivity(container) {
                 <div class="p-3.5 rounded-lg bg-slate-900/80 border border-white/5 space-y-1">
                   <div class="flex items-center justify-between">
                     <span class="font-bold text-xs text-indigo-300">Meeting Analyst</span>
-                    <span class="text-[9px] font-mono-tech px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-400">ACTIVE</span>
+                    <span class="text-[9px] font-mono-tech px-1.5 py-0.5 rounded bg-indigo-950 text-indigo-400">Listed</span>
                   </div>
                   <p class="text-[11px] text-slate-300 leading-snug">
                     Synthesizes key decisions, duration, and unresolved project risks.
                   </p>
                   <div class="text-[10px] text-slate-400 font-mono-tech pt-1">
-                    Agent ID: 6ac577cccf263d0b068d001a
+                    Agent ID: server-side configuration
                   </div>
                 </div>
 
@@ -268,13 +279,13 @@ export function renderActivity(container) {
                 <div class="p-3.5 rounded-lg bg-slate-900/80 border border-white/5 space-y-1">
                   <div class="flex items-center justify-between">
                     <span class="font-bold text-xs text-amber-300">Action Extractor</span>
-                    <span class="text-[9px] font-mono-tech px-1.5 py-0.5 rounded bg-amber-950 text-amber-400">ACTIVE</span>
+                    <span class="text-[9px] font-mono-tech px-1.5 py-0.5 rounded bg-amber-950 text-amber-400">Listed</span>
                   </div>
                   <p class="text-[11px] text-slate-300 leading-snug">
                     Extracts verbal commitments, assignees, deadlines, and direct quotes.
                   </p>
                   <div class="text-[10px] text-slate-400 font-mono-tech pt-1">
-                    Agent ID: 6ac578bf4b079480ed4ea5a5
+                    Agent ID: server-side configuration
                   </div>
                 </div>
 
@@ -361,7 +372,7 @@ export function renderActivity(container) {
                 </div>
                 <div class="p-3.5 rounded-xl bg-slate-950 border border-white/5 space-y-1">
                   <span class="text-slate-400 text-[10px] block">QDRANT CLUSTER</span>
-                  <span class="text-indigo-300 font-bold block">${escapeHtml(health.qdrant_persistence_mode || 'Cloud')}</span>
+                  <span class="text-indigo-300 font-bold block">${escapeHtml(health.qdrant_persistence_mode || 'Not reported')}</span>
                   <span class="text-slate-400 text-[10px]">Points: ${pointsCount}</span>
                 </div>
                 <div class="p-3.5 rounded-xl bg-slate-950 border border-white/5 space-y-1">

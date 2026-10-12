@@ -146,7 +146,7 @@ class QdrantMemoryAgent:
         timestamp_str: str,
         topic: str = "general",
         urgency: str = "normal",
-        uid: str = "default_user",
+        uid: str = "",
     ) -> str:
         """
         Embeds and stores an audio utterance from Omi into Qdrant vector memory.
@@ -203,15 +203,7 @@ class QdrantMemoryAgent:
 
         should_conditions = None
         if uid and uid not in ("all", "*"):
-            if uid == "default_user":
-                wearable_uids = ["default_user", "uoCU1OLVdUaEU9IxVSICTbakkiD3"]
-                if hasattr(settings, "default_user_id") and settings.default_user_id not in wearable_uids:
-                    wearable_uids.append(settings.default_user_id)
-                should_conditions = [
-                    FieldCondition(key="uid", match=MatchValue(value=u)) for u in wearable_uids
-                ]
-            else:
-                conditions.append(FieldCondition(key="uid", match=MatchValue(value=uid)))
+            conditions.append(FieldCondition(key="uid", match=MatchValue(value=uid)))
 
         if conditions or should_conditions:
             query_filter = Filter(must=conditions if conditions else None, should=should_conditions)
@@ -330,6 +322,28 @@ class QdrantMemoryAgent:
             return self._delete_by_session_id(session_id, uid)
         return False
 
+    def delete_owner_data(self, uid: str) -> int:
+        """Delete every Qdrant point owned by one authenticated user."""
+        if not uid:
+            return 0
+        try:
+            points, _ = self.client.scroll(
+                collection_name=self.collection_name,
+                scroll_filter=Filter(must=[FieldCondition(key="uid", match=MatchValue(value=uid))]),
+                limit=10000,
+                with_payload=False,
+                with_vectors=False,
+            )
+            if not points:
+                return 0
+            self.client.delete(
+                collection_name=self.collection_name,
+                points_selector=Filter(must=[FieldCondition(key="uid", match=MatchValue(value=uid))]),
+            )
+            return len(points)
+        except Exception as exc:
+            raise RuntimeError("Qdrant owner data deletion failed") from exc
+
 
     def get_stats(self) -> dict[str, Any]:
         info = self.client.get_collection(collection_name=self.collection_name)
@@ -352,15 +366,7 @@ class QdrantMemoryAgent:
         try:
             scroll_filter = None
             if uid and uid not in ("all", "*"):
-                if uid == "default_user":
-                    wearable_uids = ["default_user", "uoCU1OLVdUaEU9IxVSICTbakkiD3"]
-                    if hasattr(settings, "default_user_id") and settings.default_user_id not in wearable_uids:
-                        wearable_uids.append(settings.default_user_id)
-                    scroll_filter = Filter(should=[
-                        FieldCondition(key="uid", match=MatchValue(value=u)) for u in wearable_uids
-                    ])
-                else:
-                    scroll_filter = Filter(must=[FieldCondition(key="uid", match=MatchValue(value=uid))])
+                scroll_filter = Filter(must=[FieldCondition(key="uid", match=MatchValue(value=uid))])
             points, _ = self.client.scroll(
                 collection_name=self.collection_name,
                 scroll_filter=scroll_filter,

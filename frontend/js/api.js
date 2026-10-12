@@ -1,8 +1,10 @@
 /**
- * api.js - Centralized OmiMind 2.0 Backend Client
+ * api.js - Centralized OMIMIND 2.0 Backend Client
  * Connects to Qdrant vector memory, Lyzr agent synthesis, and SSE pipeline.
- * Transmits secure HttpOnly session cookies automatically with all requests.
+ * Attaches the current Supabase access token to protected API requests.
  */
+
+import { getAccessToken, signIn, signOut } from './supabase.js';
 
 const API_BASE = '';
 
@@ -22,71 +24,61 @@ async function handleResponse(res, errorMessage = 'Request failed') {
   return res.json();
 }
 
-export async function login(secretKey) {
-  const res = await fetch(`${API_BASE}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ secret_key: secretKey }),
-    credentials: 'same-origin',
-  });
-  return handleResponse(res, 'Authentication failed');
+async function authHeaders(extra = {}) {
+  const token = await getAccessToken();
+  return { ...extra, ...(token ? { Authorization: `Bearer ${token}` } : {}) };
 }
 
-export async function logout() {
-  const res = await fetch(`${API_BASE}/api/auth/logout`, {
-    method: 'POST',
-    credentials: 'same-origin',
-  });
-  return handleResponse(res, 'Logout failed');
+export { signIn as login, signOut as logout };
+
+export async function authorizedFetch(url, options = {}) {
+  const headers = await authHeaders(options.headers || {});
+  return fetch(url, { ...options, headers, credentials: 'same-origin' });
 }
 
 export async function checkAuthStatus() {
-  const res = await fetch(`${API_BASE}/api/auth/status`, {
-    credentials: 'same-origin',
-  });
+  const res = await authorizedFetch(`${API_BASE}/api/auth/status`);
   return handleResponse(res, 'Failed to check authentication status');
 }
 
 export async function fetchHealth() {
-  return handleResponse(await fetch(`${API_BASE}/health`, { credentials: 'same-origin' }), 'Health check failed');
+  return handleResponse(await authorizedFetch(`${API_BASE}/health`), 'Health check failed');
 }
 
 export async function fetchMeetings() {
-  return handleResponse(await fetch(`${API_BASE}/api/meetings`, { credentials: 'same-origin' }), 'Failed to fetch meetings');
+  return handleResponse(await authorizedFetch(`${API_BASE}/api/meetings`), 'Failed to fetch meetings');
 }
 
 export async function fetchMeetingDetail(meetingId) {
   return handleResponse(
-    await fetch(`${API_BASE}/api/meetings/${encodeURIComponent(meetingId)}`, { credentials: 'same-origin' }),
+    await authorizedFetch(`${API_BASE}/api/meetings/${encodeURIComponent(meetingId)}`),
     'Failed to fetch meeting detail'
   );
 }
 
-export async function fetchMemories(limit = 30, uid = 'default_user') {
-  const url = `${API_BASE}/api/memories?limit=${limit}&uid=${encodeURIComponent(uid)}`;
-  return handleResponse(await fetch(url, { credentials: 'same-origin' }), 'Failed to fetch memories');
+export async function fetchMemories(limit = 30) {
+  const url = `${API_BASE}/api/memories?limit=${limit}`;
+  return handleResponse(await authorizedFetch(url), 'Failed to fetch memories');
 }
 
 export async function fetchActions() {
-  return handleResponse(await fetch(`${API_BASE}/api/actions`, { credentials: 'same-origin' }), 'Failed to fetch action items');
+  return handleResponse(await authorizedFetch(`${API_BASE}/api/actions`), 'Failed to fetch action items');
 }
 
-export async function askMemory(question, limit = 5, uid = 'default_user') {
+export async function askMemory(question, limit = 5) {
   const res = await fetch(`${API_BASE}/api/ask`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, limit, uid }),
-    credentials: 'same-origin',
+    headers: await authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ question, limit }),
   });
   return handleResponse(res, 'Memory reasoning failed');
 }
 
-export async function queryMemory(question, limit = 4, uid = 'default_user') {
+export async function queryMemory(question, limit = 4) {
   const res = await fetch(`${API_BASE}/api/query`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ question, limit, uid }),
-    credentials: 'same-origin',
+    headers: await authHeaders({ 'Content-Type': 'application/json' }),
+    body: JSON.stringify({ question, limit }),
   });
   return handleResponse(res, 'Semantic search failed');
 }
@@ -94,9 +86,8 @@ export async function queryMemory(question, limit = 4, uid = 'default_user') {
 export async function processMeeting(meetingId) {
   const res = await fetch(`${API_BASE}/api/process`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ meeting_id: meetingId }),
-    credentials: 'same-origin',
   });
   return handleResponse(res, 'Failed to process meeting');
 }
@@ -105,11 +96,11 @@ export async function forgetMemory(sessionId = null, pointId = null) {
   let url = `${API_BASE}/api/forget?`;
   if (sessionId) url += `session_id=${encodeURIComponent(sessionId)}&`;
   if (pointId) url += `point_id=${encodeURIComponent(pointId)}`;
-  return handleResponse(await fetch(url, { method: 'POST', credentials: 'same-origin' }), 'Failed to delete memory');
+  return handleResponse(await authorizedFetch(url, { method: 'POST' }), 'Failed to delete memory');
 }
 
 export async function seedDemoData() {
-  return handleResponse(await fetch(`${API_BASE}/api/seed`, { method: 'POST', credentials: 'same-origin' }), 'Failed to seed demo data');
+  return handleResponse(await authorizedFetch(`${API_BASE}/api/seed`, { method: 'POST' }), 'Failed to seed demo data');
 }
 
 /**
@@ -120,9 +111,8 @@ export async function streamPipeline(endpoint, body, callbacks = {}) {
   try {
     const response = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: await authHeaders({ 'Content-Type': 'application/json' }),
       body: JSON.stringify(body),
-      credentials: 'same-origin',
     });
     if (!response.ok) throw new Error(`Stream request failed with HTTP ${response.status}`);
 
@@ -141,7 +131,7 @@ export async function streamPipeline(endpoint, body, callbacks = {}) {
         if (!line.startsWith('data: ')) continue;
         try {
           const event = JSON.parse(line.slice(6));
-          if (event.type === 'complete') {
+          if (event.type === 'complete' || event.type === 'pipeline_completed') {
             if (onComplete) onComplete(event.dossier);
           } else if (event.type === 'error') {
             if (onError) onError(event);

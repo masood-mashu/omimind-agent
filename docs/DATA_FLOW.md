@@ -1,4 +1,4 @@
-# OmiMind Data Flow
+# OMIMIND Data Flow
 
 This document details the data lifecycle from voice capture through vectorization, multi-agent reasoning, retrieval, and autonomous delivery.
 

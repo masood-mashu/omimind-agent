@@ -8,6 +8,7 @@ from agents.action_extractor import LyzrActionExtractor
 from agents.calendar_scheduler import LyzrCalendarScheduler
 from agents.executive_synth import LyzrExecutiveSynthesizer
 from agents.lyzr_client import LyzrClient
+from agents.lyzr_swarm import LyzrSwarmRunner
 from agents.memory_agent import QdrantMemoryAgent
 from agents.task_dispatcher import LyzrTaskDispatcher
 
@@ -20,6 +21,7 @@ class OmiMindOrchestrator:
         self.dispatcher = LyzrTaskDispatcher()
         self.scheduler = LyzrCalendarScheduler()
         self.lyzr = lyzr_client or LyzrClient()
+        self.swarm = LyzrSwarmRunner(client=self.lyzr)
 
     def process_session(
         self,

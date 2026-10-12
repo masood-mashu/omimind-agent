@@ -16,9 +16,8 @@ function escapeHtml(str) {
 
 export function renderHome(container) {
   const state = getState();
-  const qdrantPoints = state.health?.qdrant_stats?.points_count ?? 'Cloud Sync Active';
-  const persistenceMode = state.health?.qdrant_persistence_mode ?? 'Cloud';
-  const lyzrReady = state.health?.lyzr_status?.configured ?? true;
+  const qdrantPoints = state.health?.qdrant_stats?.points_count ?? 'Not loaded';
+  const persistenceMode = state.health?.qdrant_persistence_mode ?? 'Configured storage';
 
   container.innerHTML = `
     <div class="view-container max-w-6xl mx-auto space-y-10 py-4 px-4 sm:px-6">
@@ -27,7 +26,7 @@ export function renderHome(container) {
       <section class="text-center space-y-4 pt-6 pb-2">
         <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-xs font-medium">
           <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-          <span>Ambient Memory & Multi-Agent Intelligence</span>
+          <span>Single-user demo • Sample meetings ready</span>
         </div>
         <h1 class="text-3xl sm:text-5xl font-extrabold tracking-tight text-white">
           Your conversations, remembered.<br>
@@ -36,8 +35,12 @@ export function renderHome(container) {
           </span>
         </h1>
         <p class="text-sm sm:text-base text-slate-400 max-w-2xl mx-auto">
-          OmiMind captures ambient speech into Qdrant semantic memory and orchestrates Lyzr specialized agents to recall decisions, commitments, and action items.
+          Try a sample meeting, process its transcript, then review the summary, decisions, and follow-up drafts in one place.
         </p>
+
+        <a href="#meetings" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition">
+          Choose a sample meeting <span aria-hidden="true">→</span>
+        </a>
 
         <!-- Dominant Ask Bar (Command Surface) -->
         <div class="max-w-3xl mx-auto mt-6">
@@ -62,7 +65,7 @@ export function renderHome(container) {
                 class="touch-target-44 px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold text-xs sm:text-sm shadow-md transition flex items-center gap-1.5 flex-shrink-0"
               >
                 <span>Ask</span>
-                <span class="hidden sm:inline">OmiMind</span>
+                <span class="hidden sm:inline">OMIMIND</span>
                 <svg class="w-4 h-4 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
               </button>
             </div>
@@ -94,13 +97,13 @@ export function renderHome(container) {
             <div class="w-3 h-3 rounded-full bg-emerald-400 live-indicator text-emerald-400"></div>
             <div>
               <div class="flex items-center gap-2">
-                <span class="font-bold text-sm text-white">Ambient Memory Sync Active</span>
+                <span class="font-bold text-sm text-white">Memory store status</span>
                 <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  Qdrant Cloud (${persistenceMode})
+                  Vector storage (${persistenceMode})
                 </span>
               </div>
               <p class="text-xs text-slate-400 mt-0.5">
-                Listening via Omi Wearable & Web Voice • ${qdrantPoints} vectors indexed in <code class="text-cyan-300 font-mono-tech">omi_ambient_memory</code>
+                No live wearable connected. Telemetry below is simulated. ${qdrantPoints} vectors reported by the service.
               </p>
             </div>
           </div>
@@ -118,31 +121,32 @@ export function renderHome(container) {
             </button>
           </div>
         </div>
-        <!-- Live Waveform strip -->
+        <!-- Waveform: live microphone input while recording, decorative idle animation otherwise -->
         <div class="mt-4 pt-3 border-t border-white/5">
           <canvas id="ambient-waveform" width="800" height="36" class="w-full h-9 rounded-lg"></canvas>
+          <p class="text-[10px] text-slate-500 mt-1">Idle waveform is decorative; live audio appears only while microphone recording is active.</p>
         </div>
 
         <!-- Wearable Hardware Telemetry Sub-bar (from Stitch Obsidian Telemetry) -->
         <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 border-t border-white/5 text-[11px] font-mono-tech">
           <div class="p-2 rounded-xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
-            <span class="text-slate-400">Omi Battery</span>
+              <span class="text-slate-400">Wearable status</span>
             <span class="text-emerald-400 font-bold flex items-center gap-1">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              94% (18h)
+              Simulated
             </span>
           </div>
           <div class="p-2 rounded-xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
-            <span class="text-slate-400">BLE Signal</span>
-            <span class="text-cyan-300 font-bold">-42 dBm</span>
+            <span class="text-slate-400">Connection</span>
+            <span class="text-cyan-300 font-bold">No live device</span>
           </div>
           <div class="p-2 rounded-xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
-            <span class="text-slate-400">DSP Latency</span>
-            <span class="text-indigo-300 font-bold">18.2 ms</span>
+            <span class="text-slate-400">Telemetry</span>
+            <span class="text-indigo-300 font-bold">Illustrative</span>
           </div>
           <div class="p-2 rounded-xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
-            <span class="text-slate-400">Encryption</span>
-            <span class="text-purple-300 font-bold">AES-256</span>
+            <span class="text-slate-400">Data source</span>
+            <span class="text-purple-300 font-bold">Demo values</span>
           </div>
         </div>
 
@@ -172,7 +176,7 @@ export function renderHome(container) {
         </div>
       </section>
 
-      <!-- Multi-Agent Swarm Orchestrator (Adopted from Stitch Obsidian Telemetry) -->
+        <!-- Pipeline overview; static statuses are illustrative, not live activity -->
       <section class="omi-card p-5 border border-white/10 shadow-2xl relative overflow-hidden">
         <div class="absolute -right-16 -top-16 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div class="absolute -left-16 -bottom-16 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -185,18 +189,18 @@ export function renderHome(container) {
             </div>
             <div>
               <div class="flex items-center gap-2">
-                <h2 class="text-sm font-bold text-white tracking-wide">Multi-Agent Swarm Orchestrator</h2>
+                <h2 class="text-sm font-bold text-white tracking-wide">How meeting processing works</h2>
                 <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  Lyzr Swarm v2.4
+                  Pipeline overview
                 </span>
               </div>
-              <p class="text-[11px] text-slate-400 font-mono-tech mt-0.5">Automated autonomous pipeline triggered from live wearable ambient audio</p>
+              <p class="text-[11px] text-slate-400 font-mono-tech mt-0.5">Illustrative stages. Per-meeting activity appears after you process a transcript.</p>
             </div>
           </div>
           <div class="flex items-center gap-2">
             <span class="px-2.5 py-1 rounded-full text-[10px] font-mono-tech bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
               <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              Synchronized Pipeline: 4 Nodes Active
+              Example stages
             </span>
             <a href="#activity" class="text-xs text-cyan-400 hover:text-cyan-300 font-medium px-2 py-1 rounded hover:bg-white/5 transition">
               Live Feed →
@@ -214,13 +218,13 @@ export function renderHome(container) {
                 <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-cyan-500/20 text-cyan-300 font-bold">
                   01 // MEMORY AGENT
                 </span>
-                <span class="text-[10px] font-mono-tech text-emerald-400 font-semibold">98% Match</span>
+                <span class="text-[10px] font-mono-tech text-emerald-400 font-semibold">Example</span>
               </div>
               <h3 class="text-xs font-bold text-white">Qdrant Vector Retrieval</h3>
               <p class="text-[11px] text-slate-400 mt-1 font-mono-tech">Embeds ambient speech & queries <code class="text-cyan-300">omi_ambient_memory</code> with cosine similarity.</p>
             </div>
             <div class="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-[10px] font-mono-tech text-slate-500">
-              <span>Grounding: Active</span>
+              <span>Retrieval stage</span>
               <span class="text-cyan-400 font-semibold">Vector Store</span>
             </div>
           </div>
@@ -232,13 +236,13 @@ export function renderHome(container) {
                 <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-indigo-500/20 text-indigo-300 font-bold">
                   02 // REASONER AGENT
                 </span>
-                <span class="text-[10px] font-mono-tech text-indigo-300 font-semibold">Synthesizing</span>
+                <span class="text-[10px] font-mono-tech text-indigo-300 font-semibold">Example</span>
               </div>
               <h3 class="text-xs font-bold text-white">Contextual Synthesis</h3>
               <p class="text-[11px] text-slate-400 mt-1 font-mono-tech">Lyzr manager agent cross-references past meetings, speakers, and budget context.</p>
             </div>
             <div class="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-[10px] font-mono-tech text-slate-500">
-              <span>Model: Lyzr Pro</span>
+              <span>Reasoning stage</span>
               <span class="text-indigo-400 font-semibold">Cognitive Node</span>
             </div>
           </div>
@@ -250,14 +254,14 @@ export function renderHome(container) {
                 <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-amber-500/20 text-amber-300 font-bold">
                   03 // ACTION EXTRACTOR
                 </span>
-                <span class="text-[10px] font-mono-tech text-amber-300 font-semibold">Parsed</span>
+                <span class="text-[10px] font-mono-tech text-amber-300 font-semibold">Example</span>
               </div>
               <h3 class="text-xs font-bold text-white">Commitment Ledger</h3>
               <p class="text-[11px] text-slate-400 mt-1 font-mono-tech">Parses spoken promises into structured assignees, deadlines, and priority tags.</p>
             </div>
             <div class="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-[10px] font-mono-tech text-slate-500">
-              <span>Priority: Critical</span>
-              <span class="text-amber-400 font-semibold">Tasks Extracted</span>
+              <span>Illustrative priority</span>
+              <span class="text-amber-400 font-semibold">Example actions</span>
             </div>
           </div>
 
@@ -268,14 +272,14 @@ export function renderHome(container) {
                 <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-purple-500/20 text-purple-300 font-bold">
                   04 // TASK DISPATCHER
                 </span>
-                <span class="text-[10px] font-mono-tech text-purple-300 font-semibold">Drafts Ready</span>
+                <span class="text-[10px] font-mono-tech text-purple-300 font-semibold">Example</span>
               </div>
               <h3 class="text-xs font-bold text-white">Execution Gateway</h3>
               <p class="text-[11px] text-slate-400 mt-1 font-mono-tech">Generates follow-up email, Jira ticket payloads, and calendar schedule events.</p>
             </div>
             <div class="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-[10px] font-mono-tech text-slate-500">
-              <span>Outputs: 3 Drafts</span>
-              <span class="text-purple-400 font-semibold">Ready to Sync</span>
+              <span>Review generated drafts</span>
+              <span class="text-purple-400 font-semibold">User controlled</span>
             </div>
           </div>
 

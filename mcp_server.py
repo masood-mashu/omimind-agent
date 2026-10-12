@@ -1,5 +1,5 @@
 """
-mcp_server.py - Model Context Protocol (MCP) Server for OmiMind Ambient Voice Memory
+mcp_server.py - Model Context Protocol (MCP) Server for OMIMIND Ambient Voice Memory
 Allows external agents (Claude, ChatGPT, Cursor, Antigravity) to query ambient memory and orchestrate tasks.
 Protocol Specification: JSON-RPC 2.0 (MCP 2024-11-05) over stdio.
 """

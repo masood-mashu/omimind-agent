@@ -226,7 +226,6 @@ function renderMemoryCards(container, list, isSearchResults = false) {
         <div class="mt-2 p-2.5 rounded-lg bg-slate-950 font-mono-tech text-[10px] space-y-1 text-slate-400 border border-white/5">
           ${m.id ? `<div>Point ID: <span class="text-slate-300">${escapeHtml(m.id)}</span></div>` : ''}
           ${m.session_id ? `<div>Session ID: <span class="text-slate-300">${escapeHtml(m.session_id)}</span></div>` : ''}
-          ${m.uid ? `<div>UID Scope: <span class="text-slate-300">${escapeHtml(m.uid)}</span></div>` : ''}
           ${m.raw_vector_score !== undefined ? `<div>Raw Cosine Similarity: <span class="text-cyan-400">${escapeHtml(m.raw_vector_score)}</span></div>` : ''}
         </div>
       </details>

@@ -1,4 +1,4 @@
-# Dockerfile for OmiMind Ambient Voice Intelligence
+# Dockerfile for OMIMIND Ambient Voice Intelligence
 FROM python:3.11-slim
 
 WORKDIR /app

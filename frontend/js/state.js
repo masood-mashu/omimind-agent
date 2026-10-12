@@ -1,5 +1,5 @@
 /**
- * state.js - Reactive State Management Store for OmiMind 2.0
+ * state.js - Reactive State Management Store for OMIMIND 2.0
  */
 
 const state = {

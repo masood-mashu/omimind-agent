@@ -1,5 +1,5 @@
 /**
- * app.js - Main Application Bootstrapper for OmiMind 2.0
+ * app.js - Main Application Bootstrapper for OMIMIND 2.0
  * Initializes state, navigation, audio engine, ambient waveform, and routing.
  */
 
@@ -11,6 +11,7 @@ import { initWaveform } from './components/waveform.js';
 import { setupVoiceCapture } from './audio.js';
 import { showToast } from './components/toast.js';
 import { openModal, closeModal } from './components/modal.js';
+import { getSession, signIn, signOut, signUp, resetPassword, updatePassword } from './supabase.js';
 
 let voiceEngine = null;
 let stopWaveform = null;
@@ -50,25 +51,28 @@ function updateAuthButtonState(authenticated) {
   }
 }
 
+function renderLanding() {
+  const landing = document.getElementById('public-landing');
+  if (!landing) return;
+  document.getElementById('app-shell')?.classList.add('hidden');
+  landing.classList.remove('hidden');
+  landing.innerHTML = `<div class="min-h-screen bg-[#060811] text-slate-100"><div class="mx-auto max-w-7xl px-6 py-6 lg:px-10"><header class="flex items-center justify-between"><a href="#" class="flex items-center gap-3"><span class="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-tr from-cyan-400 to-indigo-600 font-bold">Ω</span><span class="text-lg font-extrabold tracking-tight">OMIMIND</span></a><button id="landing-signin" class="rounded-xl border border-cyan-400/40 bg-cyan-400/10 px-4 py-2 text-sm font-semibold text-cyan-200">Sign in</button></header><main class="grid items-center gap-12 pb-20 pt-20 lg:grid-cols-[1.08fr_.92fr]"><section><p class="mb-5 inline-flex rounded-full border border-cyan-400/20 bg-cyan-400/10 px-3 py-1 text-xs font-semibold uppercase tracking-[.2em] text-cyan-200">Voice → memory → momentum</p><h1 class="max-w-3xl text-5xl font-extrabold leading-[1.03] tracking-tight sm:text-6xl">Make every conversation useful after it ends.</h1><p class="mt-6 max-w-2xl text-lg leading-8 text-slate-300">OMIMIND turns Omi voice conversations into searchable memory, decisions, action items, and reviewable follow-up drafts with a visible Lyzr multi-agent workflow.</p><div class="mt-8 flex flex-wrap gap-3"><button id="landing-cta" class="rounded-xl bg-gradient-to-r from-cyan-500 to-indigo-600 px-5 py-3 text-sm font-bold text-white">Try a sample workflow</button><button id="landing-learn" class="rounded-xl border border-white/10 px-5 py-3 text-sm font-semibold text-slate-200">See how it works</button></div><p class="mt-5 text-xs text-slate-500">Create your own workspace. Demo telemetry stays labeled until a live Omi connection is active.</p></section><div class="rounded-3xl border border-white/10 bg-slate-950/70 p-5 shadow-2xl"><div class="mb-4 flex items-center justify-between"><span class="text-xs font-bold uppercase tracking-[.18em] text-slate-400">Sample meeting preview</span><span class="rounded-full bg-emerald-400/10 px-2 py-1 text-[10px] font-semibold text-emerald-300">Ready to explore</span></div><div class="space-y-3"><div class="rounded-2xl border border-cyan-400/20 bg-cyan-400/5 p-4"><p class="text-sm font-semibold">Q4 Product Strategy Sync</p><p class="mt-1 text-xs text-slate-400">Omi capture → Qdrant evidence → Lyzr swarm → user-reviewed drafts</p></div><div class="grid grid-cols-2 gap-3 text-xs"><div class="rounded-2xl bg-white/5 p-4"><p class="text-slate-400">Decisions</p><p class="mt-2 text-xl font-bold text-white">04</p></div><div class="rounded-2xl bg-white/5 p-4"><p class="text-slate-400">Action items</p><p class="mt-2 text-xl font-bold text-white">07</p></div></div><div class="rounded-2xl border border-white/10 p-4 text-[11px] text-slate-400"><p class="text-cyan-200">● Agent trace visible during processing</p><p class="mt-2">Memory Recall <span class="float-right text-emerald-300">complete</span></p><p>Meeting Analyst <span class="float-right text-emerald-300">complete</span></p><p>Action Extractor <span class="float-right text-amber-300">review</span></p></div></div></div></main><section id="landing-details" class="grid gap-5 pb-20 md:grid-cols-3"><article class="rounded-2xl border border-white/10 bg-white/[.03] p-5"><p class="text-xs font-bold uppercase tracking-[.18em] text-cyan-300">The problem</p><h2 class="mt-3 text-lg font-bold">Important commitments disappear into conversation.</h2><p class="mt-2 text-sm leading-6 text-slate-400">Teams remember fragments, lose owners, and spend hours reconstructing what was actually decided.</p></article><article class="rounded-2xl border border-white/10 bg-white/[.03] p-5"><p class="text-xs font-bold uppercase tracking-[.18em] text-indigo-300">The solution</p><h2 class="mt-3 text-lg font-bold">A memory layer for work that keeps context attached.</h2><p class="mt-2 text-sm leading-6 text-slate-400">OMIMIND grounds outputs in the conversation, then lets you inspect and approve what happens next.</p></article><article class="rounded-2xl border border-white/10 bg-white/[.03] p-5"><p class="text-xs font-bold uppercase tracking-[.18em] text-emerald-300">The loop</p><h2 class="mt-3 text-lg font-bold">Omi → Qdrant → Lyzr → your review.</h2><p class="mt-2 text-sm leading-6 text-slate-400">Voice becomes searchable evidence, specialist agents reason over it, and drafts remain user-controlled.</p></article></section></div></div>`;
+  document.getElementById('landing-signin')?.addEventListener('click', openLoginModal);
+  document.getElementById('landing-cta')?.addEventListener('click', openLoginModal);
+  document.getElementById('landing-learn')?.addEventListener('click', () => document.getElementById('landing-details')?.scrollIntoView({ behavior: 'smooth' }));
+}
+
 export function openLoginModal() {
   openModal({
-    title: 'Authenticate OmiMind Session',
-    subtitle: 'Enter your configured API Secret Key to establish an authenticated session.',
+    title: 'Enter your OMIMIND workspace',
+    subtitle: 'Create an account or sign in with your verified email.',
     contentHtml: `
       <div class="space-y-4">
-        <p class="text-xs text-slate-400">
-          Backend API endpoints are protected with strict authorization. Submitting your API key sets a secure, HttpOnly, SameSite session cookie. Credentials are never stored in browser localStorage.
-        </p>
         <div>
-          <label for="input-api-secret" class="block text-xs font-semibold text-slate-300 mb-1.5">API Secret Key</label>
-          <input
-            id="input-api-secret"
-            type="password"
-            placeholder="Enter API_SECRET_KEY"
-            autocomplete="current-password"
-            class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-cyan-500/50"
-          />
+          <label for="input-auth-email" class="block text-xs font-semibold text-slate-300 mb-1.5">Email</label><input id="input-auth-email" type="email" placeholder="you@example.com" autocomplete="email" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-cyan-500/50" />
         </div>
+        <div><label for="input-auth-password" class="block text-xs font-semibold text-slate-300 mb-1.5">Password</label><input id="input-auth-password" type="password" placeholder="At least 8 characters" autocomplete="current-password" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm focus:outline-none focus:border-cyan-500/50" /></div>
+        <div class="flex items-center justify-between text-xs"><button id="btn-auth-mode" class="text-cyan-300 hover:text-cyan-200">Create an account</button><button id="btn-auth-reset" class="text-slate-400 hover:text-white">Forgot password?</button></div>
       </div>
     `,
     actionsHtml: `
@@ -78,29 +82,50 @@ export function openLoginModal() {
   });
 
   const submitBtn = document.getElementById('btn-submit-login');
-  const inputEl = document.getElementById('input-api-secret');
+  const inputEl = document.getElementById('input-auth-password');
+  const emailEl = document.getElementById('input-auth-email');
   const cancelBtn = document.getElementById('btn-cancel-login');
+  const modeBtn = document.getElementById('btn-auth-mode');
+  let signupMode = false;
 
   if (cancelBtn) cancelBtn.addEventListener('click', closeModal);
 
+  modeBtn?.addEventListener('click', () => { signupMode = !signupMode; modeBtn.innerText = signupMode ? 'Already have an account?' : 'Create an account'; submitBtn.innerText = signupMode ? 'Create account' : 'Sign In'; });
+
   const doLogin = async () => {
-    const key = inputEl?.value?.trim();
-    if (!key) {
-      showToast('Please enter your API secret key', 'warning');
+    const email = emailEl?.value?.trim();
+    const password = inputEl?.value || '';
+    if (!email || !password) {
+      showToast('Enter an email and password.', 'warning');
       return;
     }
     submitBtn.disabled = true;
     submitBtn.innerText = 'Authenticating...';
     try {
-      await api.login(key);
-      showToast('Authenticated successfully', 'success');
+      if (signupMode) {
+        const result = await signUp(email, password);
+        if (!result.session) {
+          showToast('Account created. Check your inbox and verify your email before signing in.', 'success');
+          submitBtn.disabled = false;
+          submitBtn.innerText = 'Create account';
+          return;
+        }
+        showToast('Account created.', 'success');
+      } else {
+        await signIn(email, password);
+        showToast('Welcome back.', 'success');
+      }
       closeModal();
+      document.getElementById('public-landing')?.classList.add('hidden');
+      document.getElementById('app-shell')?.classList.remove('hidden');
+      initNav();
       updateAuthButtonState(true);
       await refreshAppData();
+      initRouter();
     } catch (err) {
       showToast(err.message || 'Authentication failed', 'error');
       submitBtn.disabled = false;
-      submitBtn.innerText = 'Sign In';
+      submitBtn.innerText = signupMode ? 'Create account' : 'Sign In';
     }
   };
 
@@ -110,16 +135,37 @@ export function openLoginModal() {
       if (e.key === 'Enter') doLogin();
     });
   }
+  document.getElementById('btn-auth-reset')?.addEventListener('click', async () => { const email = emailEl?.value?.trim(); if (!email) return showToast('Enter your email first.', 'warning'); try { await resetPassword(email); showToast('Password reset email sent.', 'success'); } catch (err) { showToast(err.message, 'error'); } });
+}
+
+function openRecoveryModal() {
+  openModal({
+    title: 'Set a new OMIMIND password',
+    subtitle: 'Choose a new password for this verified account.',
+    contentHtml: '<label for="recovery-password" class="block text-xs font-semibold text-slate-300 mb-1.5">New password</label><input id="recovery-password" type="password" class="w-full px-3.5 py-2.5 rounded-xl bg-slate-900 border border-white/10 text-white text-sm" placeholder="At least 8 characters" />',
+    actionsHtml: '<button id="recovery-submit" class="px-4 py-2 rounded-xl text-xs font-semibold bg-cyan-500 text-slate-950">Update password</button>',
+  });
+  document.getElementById('recovery-submit')?.addEventListener('click', async () => {
+    const password = document.getElementById('recovery-password')?.value || '';
+    if (password.length < 8) return showToast('Use at least 8 characters.', 'warning');
+    try { await updatePassword(password); closeModal(); showToast('Password updated.', 'success'); } catch (err) { showToast(err.message, 'error'); }
+  });
 }
 
 async function bootstrap() {
+  const supabaseSession = await getSession().catch(() => ({ session: null }));
+  const auth = supabaseSession.session ? { authenticated: true } : await api.checkAuthStatus().catch(() => ({ authenticated: false }));
+  if (!auth.authenticated) {
+    renderLanding();
+    updateAuthButtonState(false);
+    return;
+  }
+  document.getElementById('public-landing')?.classList.add('hidden');
+  document.getElementById('app-shell')?.classList.remove('hidden');
   initNav();
-
-  // Check authentication status and load initial data
-  const auth = await api.checkAuthStatus().catch(() => ({ authenticated: false }));
-  updateAuthButtonState(auth.authenticated);
-
+  updateAuthButtonState(true);
   await refreshAppData();
+  if (window.location.hash.includes('type=recovery')) openRecoveryModal();
 
   // Setup Audio Engine
   voiceEngine = setupVoiceCapture({
@@ -167,9 +213,10 @@ async function bootstrap() {
       e.preventDefault();
       const auth = await api.checkAuthStatus().catch(() => ({ authenticated: false }));
       if (auth.authenticated) {
-        await api.logout();
+        await signOut();
         showToast('Logged out successfully', 'info');
         updateAuthButtonState(false);
+        renderLanding();
       } else {
         openLoginModal();
       }
@@ -212,7 +259,7 @@ async function bootstrap() {
   // Listen for unauthorized responses across all views
   window.addEventListener('omimind:unauthorized', () => {
     updateAuthButtonState(false);
-    if (!document.getElementById('input-api-secret')) {
+    if (!document.getElementById('input-auth-email')) {
       openLoginModal();
     }
   });

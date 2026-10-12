@@ -4,6 +4,7 @@ health.py - Health check and system observability endpoints
 from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
+from backend.config import settings
 from backend.shared import orchestrator
 
 router = APIRouter(tags=["Health & Status"])
@@ -19,6 +20,7 @@ def health():
     health_data = {
         "status": "healthy" if is_healthy else "degraded",
         "service": "omimind-agent",
+        "deployment_mode": settings.deployment_mode,
         "version": "2.0.0",
         "embedding_provider": stats.get("embedding_provider", "fastembed"),
         "vector_dimension": stats.get("vector_dimension", 384),
@@ -27,6 +29,7 @@ def health():
             "configured": orchestrator.lyzr.configured,
             "agent_id_configured": bool(orchestrator.lyzr.agent_id),
             "provider": "lyzr_studio_cloud" if orchestrator.lyzr.configured else "unconfigured",
+            "agent_roles": orchestrator.swarm.registry.as_dict(),
         },
         "embedding_health": emb_health,
         "qdrant_stats": stats,

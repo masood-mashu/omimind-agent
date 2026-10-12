@@ -1,5 +1,5 @@
 """
-api_models.py - Request and Response Pydantic Schemas for OmiMind API
+api_models.py - Request and Response Pydantic Schemas for OMIMIND API
 Strict input validation bounds preventing resource exhaustion and abuse.
 """
 from __future__ import annotations
@@ -39,7 +39,6 @@ class CustomVoiceRequest(BaseModel):
 class QueryRequest(BaseModel):
     question: str = Field(..., min_length=1, max_length=MAX_QUERY_LENGTH)
     limit: int = Field(default=4, ge=1, le=20)
-    uid: str | None = Field(default="default_user", max_length=128)
 
     @model_validator(mode="before")
     @classmethod
@@ -57,7 +56,6 @@ class OmiWebhookRequest(BaseModel):
     segments: list[dict[str, Any]] | None = None
     transcript: str | None = None
     speaker: str | None = Field(default="Omi User", max_length=MAX_SPEAKER_LENGTH)
-    uid: str | None = Field(default="default_user", max_length=128)
 
     @model_validator(mode="before")
     @classmethod

@@ -1,5 +1,5 @@
 /**
- * ask.js - Ask OmiMind Hero Conversational Memory Assistant
+ * ask.js - Ask OMIMIND Hero Conversational Memory Assistant
  * Real natural language recall powered by Qdrant semantic memory & Lyzr Manager/Recall Agent.
  */
 
@@ -24,7 +24,7 @@ export function renderAsk(container, initialQuery = '') {
         <div>
           <h1 class="text-xl sm:text-2xl font-bold text-white flex items-center gap-2.5">
             <span class="text-cyan-400">✦</span>
-            <span>Ask OmiMind</span>
+            <span>Ask OMIMIND</span>
           </h1>
           <p class="text-xs sm:text-sm text-slate-300 mt-0.5">
             Grounded conversational recall over your ambient conversations and meetings.
@@ -255,7 +255,7 @@ function renderTimeline(history) {
         <div>
           <h2 class="text-base font-semibold text-white">Ask your ambient memory anything</h2>
           <p class="text-xs text-slate-300 mt-1 max-w-md mx-auto">
-            OmiMind continuously indexes utterances into Qdrant. Ask natural questions to recall what was said, who said it, and when.
+            OMIMIND continuously indexes utterances into Qdrant. Ask natural questions to recall what was said, who said it, and when.
           </p>
         </div>
         <div class="pt-2 flex flex-wrap justify-center gap-2">
@@ -281,7 +281,7 @@ function renderTimeline(history) {
         </div>
       </div>
 
-      <!-- OmiMind Answer Card -->
+      <!-- OMIMIND Answer Card -->
       <div class="flex justify-start">
         <div class="omi-card max-w-[95%] sm:max-w-[90%] p-5 space-y-4 border border-white/10 shadow-xl bg-[#0e131f]">
           
@@ -291,7 +291,7 @@ function renderTimeline(history) {
               <span class="w-6 h-6 rounded-lg bg-cyan-500/20 text-cyan-300 flex items-center justify-center text-xs font-bold font-mono-tech">
                 Ω
               </span>
-              <span class="font-bold text-xs text-white">OmiMind Answer</span>
+              <span class="font-bold text-xs text-white">OMIMIND Answer</span>
             </div>
             
             <!-- Grounding Indicator (honest values from backend) -->

@@ -31,7 +31,7 @@ RISKS & MONITORING:
 """ + "\n".join([f"⚠️ {r}" for r in summary.get("risks_and_blockers", [])]) + """
 
 Best regards,
-OmiMind Autonomous Chief of Staff
+OMIMIND Meeting Assistant
 (Powered by Lyzr & Qdrant)
 """
         return {

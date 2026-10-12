@@ -5,6 +5,8 @@ and multi-tenant isolation.
 """
 from __future__ import annotations
 
+import hashlib
+import hmac
 import time
 from unittest.mock import patch
 
@@ -143,6 +145,35 @@ class TestWebhookPersistenceAndRetry:
         assert resp.status_code == 401
         assert "outside allowable 5-minute window" in resp.json()["detail"]
 
+    @pytest.mark.parametrize("timestamp", ["not-a-number", str(time.time() + 600)])
+    def test_malformed_and_future_timestamps_rejected(self, timestamp):
+        payload = {"session_id": "bad-ts", "transcript": "test"}
+        resp = client.post("/api/omi-webhook", json=payload, headers=_valid_headers(timestamp=timestamp))
+        assert resp.status_code == 401
+
+    def test_signed_webhook_requires_timestamp(self):
+        payload = b'{"session_id":"signed-no-ts","transcript":"test"}'
+        signature = hmac.new(VALID_WEBHOOK_SECRET.encode(), b"None." + payload, hashlib.sha256).hexdigest()
+        resp = client.post("/api/omi-webhook", content=payload, headers={
+            "content-type": "application/json", "x-omi-signature": signature,
+        })
+        assert resp.status_code == 401
+
+    @pytest.mark.parametrize("signed_value", ["body", "timestamp"])
+    def test_signature_rejects_wrong_body_or_timestamp(self, signed_value):
+        timestamp = str(time.time())
+        actual_body = b'{"session_id":"signature-test","transcript":"actual"}'
+        signed_body = b'{"session_id":"signature-test","transcript":"other"}' if signed_value == "body" else actual_body
+        signed_timestamp = str(time.time() - 1) if signed_value == "timestamp" else timestamp
+        signature = hmac.new(
+            VALID_WEBHOOK_SECRET.encode(), signed_timestamp.encode() + b"." + signed_body, hashlib.sha256
+        ).hexdigest()
+        resp = client.post("/api/omi-webhook", content=actual_body, headers={
+            "content-type": "application/json", "x-omi-timestamp": timestamp,
+            "x-omi-signature": signature,
+        })
+        assert resp.status_code == 401
+
     def test_malformed_payload_rejected_before_persistence(self):
         # Empty payload
         resp = client.post("/api/omi-webhook", json={}, headers=_valid_headers())
@@ -189,6 +220,37 @@ class TestWebhookPersistenceAndRetry:
         assert is_dup is True
         assert second["attempt_count"] == first["attempt_count"]
 
+    def test_same_event_id_with_changed_payload_is_rejected(self):
+        from backend.webhook_store import PayloadConflictError
+
+        default_webhook_inbox.record_incoming_event("mutated-id", "hash-a", "default_user", "session", {"x": 1})
+        with pytest.raises(PayloadConflictError):
+            default_webhook_inbox.record_incoming_event("mutated-id", "hash-b", "default_user", "session", {"x": 2})
+
+    def test_completed_events_expire_after_72_hours(self):
+        old = time.time() - 73 * 60 * 60
+        is_dup, record = default_webhook_inbox.record_incoming_event("old-id", "old-hash", "default_user", "old-session")
+        assert not is_dup
+        default_webhook_inbox.mark_completed(record["event_key"])
+        with default_webhook_inbox._get_connection() as conn:
+            conn.execute("UPDATE webhook_inbox SET received_at=? WHERE event_key=?", (old, record["event_key"]))
+        assert default_webhook_inbox.get_event(record["event_key"]) is None
+        assert default_webhook_inbox.cleanup_expired() == 0
+
+    def test_stale_processing_lease_can_be_reclaimed(self):
+        is_dup, record = default_webhook_inbox.record_incoming_event("stale-id", "stale-hash", "default_user", "stale-session")
+        assert not is_dup
+        with default_webhook_inbox._get_connection() as conn:
+            conn.execute(
+                "UPDATE webhook_inbox SET received_at=? WHERE event_key=?",
+                (time.time() - 301, record["event_key"]),
+            )
+        reclaimed, retry = default_webhook_inbox.record_incoming_event(
+            "stale-id", "stale-hash", "default_user", "stale-session"
+        )
+        assert reclaimed is False
+        assert retry["attempt_count"] == 2
+
     def test_realtime_delivery_is_deduplicated_and_persisted(self):
         payload = {
             "event_id": "realtime_chunk_1",
@@ -209,5 +271,5 @@ class TestWebhookPersistenceAndRetry:
         monkeypatch.setattr(webhook_inbox, "is_testing", lambda: False)
         monkeypatch.setenv("VERCEL", "1")
         monkeypatch.delenv("WEBHOOK_INBOX_DB_PATH", raising=False)
-        with pytest.raises(RuntimeError, match="Durable webhook inbox storage"):
+        with pytest.raises(RuntimeError, match="WEBHOOK_DATABASE_URL"):
             webhook_inbox._get_db_path()

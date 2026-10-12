@@ -23,6 +23,7 @@ import pathlib
 import time
 
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from agents.lyzr_client import LyzrClient
@@ -46,7 +47,72 @@ def user_b_client():
     return TestClient(app, headers={"Authorization": f"Bearer {settings.api_secret_key}:user_sec_b"})
 
 
+@pytest.fixture(autouse=True)
+def configure_test_webhook_secret(monkeypatch):
+    if settings.api_secret_key:
+        monkeypatch.setattr(settings, "omi_webhook_secret", settings.api_secret_key)
+
+
 class TestSecurityHardening:
+    def test_production_configuration_requires_supabase_postgres(self, monkeypatch):
+        from backend.config import Settings, validate_production_config
+
+        monkeypatch.setattr("backend.config.is_testing", lambda: False)
+        cfg = Settings(
+            environment="production",
+            deployment_mode="multi_user",
+            supabase_url="https://project.supabase.co",
+            supabase_publishable_key="publishable",
+            supabase_service_role_key="service-role",
+            omi_webhook_secret="webhook-secret",
+            qdrant_url="https://qdrant.example",
+            qdrant_api_key="qdrant-secret",
+            database_url=None,
+        )
+        with pytest.raises(RuntimeError, match="DATABASE_URL"):
+            validate_production_config(cfg)
+
+    def test_unsupported_deployment_mode_is_rejected(self):
+        from backend.config import Settings, validate_production_config
+
+        with pytest.raises(RuntimeError, match="only multi_user"):
+            validate_production_config(Settings(environment="development", deployment_mode="single_user"))
+
+    def test_production_webhook_timestamp_is_mandatory(self, monkeypatch):
+        from starlette.requests import Request
+
+        from backend.auth import _verify_webhook_timestamp
+
+        monkeypatch.setattr("backend.auth.is_testing", lambda: False)
+        monkeypatch.setattr("backend.auth.allow_test_tenant_overrides", lambda: False)
+        monkeypatch.setattr(settings, "omi_webhook_secret", "configured-webhook-secret")
+        request = Request({"type": "http", "method": "POST", "path": "/omi/conversation",
+                           "query_string": b"uid=attacker", "headers": [(b"x-omi-webhook-secret", b"configured-webhook-secret")]})
+        with pytest.raises(HTTPException, match="timestamp"):
+            _verify_webhook_timestamp(request)
+
+    def test_production_webhook_identity_ignores_caller_uid(self, monkeypatch):
+        from starlette.requests import Request
+
+        from backend.auth import _match_webhook_secret, check_no_query_secrets
+
+        monkeypatch.setattr("backend.auth.is_testing", lambda: False)
+        monkeypatch.setattr("backend.auth.allow_test_tenant_overrides", lambda: False)
+        monkeypatch.setattr(settings, "omi_webhook_secret", "configured-webhook-secret")
+        request = Request({
+            "type": "http",
+            "method": "POST",
+            "path": "/omi/conversation",
+            "query_string": b"uid=attacker",
+            "headers": [
+                (b"x-omi-webhook-secret", b"configured-webhook-secret"),
+                (b"x-omi-timestamp", str(time.time()).encode()),
+            ],
+        })
+        check_no_query_secrets(request)
+        valid, uid = _match_webhook_secret("configured-webhook-secret", settings.omi_webhook_secret)
+        assert valid
+        assert uid is None
     def test_tenant_suffix_cannot_mint_identity_outside_tests(self, monkeypatch, unauthenticated_client):
         monkeypatch.setattr("backend.auth.is_testing", lambda: False)
         response = unauthenticated_client.get(

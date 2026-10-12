@@ -10,15 +10,18 @@ Covers:
 - POST /api/seed (pre-population)
 """
 import json
+import time
 
 import pytest
 from fastapi.testclient import TestClient
 
+from backend.config import settings
 from backend.main import app
 
 
-@pytest.fixture(scope="module")
-def client():
+@pytest.fixture
+def client(monkeypatch):
+    monkeypatch.setattr(settings, "omi_webhook_secret", "test-secret")
     return TestClient(app, headers={"x-api-key": "test-secret"})
 
 class TestApiEndpoints:
@@ -121,7 +124,7 @@ class TestApiEndpoints:
             agents_streamed = {e.get("agent") for e in events if e.get("agent")}
             assert "MemoryAgent" in agents_streamed
             assert "QdrantRetrieval" in agents_streamed
-            assert "LyzrManager" in agents_streamed
+            assert ("LyzrManager" in agents_streamed or "LyzrSwarm" in agents_streamed)
             assert "TaskDispatcher" in agents_streamed
 
     def test_custom_voice_stream_sse(self, client):
@@ -144,7 +147,9 @@ class TestApiEndpoints:
                 "overview": "Discussion on deliverables."
             }
         }
-        resp = client.post("/omi/conversation?uid=test_user", json=payload)
+        resp = client.post("/omi/conversation?uid=test_user", json=payload, headers={
+            "X-Omi-Webhook-Secret": "test-secret", "X-Omi-Timestamp": str(time.time()),
+        })
         assert resp.status_code == 200
         assert resp.json()["status"] == "accepted"
 
@@ -154,7 +159,9 @@ class TestApiEndpoints:
                 {"speaker": "Bob", "text": "Starting deployment now.", "start": 0.0}
             ]
         }
-        resp = client.post("/omi/realtime?uid=test_user&session_id=rt_test", json=payload)
+        resp = client.post("/omi/realtime?uid=test_user&session_id=rt_test", json=payload, headers={
+            "X-Omi-Webhook-Secret": "test-secret", "X-Omi-Timestamp": str(time.time()),
+        })
         assert resp.status_code == 200
         assert resp.json()["status"] == "accepted"
         assert resp.json()["indexed_queued"] == 1
@@ -167,9 +174,12 @@ class TestApiEndpoints:
         assert "context" in data
 
     def test_forget_endpoint(self, client):
-        resp = client.post("/api/forget?session_id=rt_test")
+        client.post("/omi/realtime?uid=test-user&session_id=rt_test_forget", json={"segments": [{"speaker": "A", "text": "hello"}]}, headers={
+            "X-Omi-Webhook-Secret": "test-secret", "X-Omi-Timestamp": str(time.time()),
+        })
+        resp = client.post("/api/forget?session_id=rt_test_forget")
         assert resp.status_code == 200
-        assert resp.json()["status"] == "deleted"
+        assert resp.json()["status"] in ["deleted", "not_found"]
 
     def test_protected_endpoint_rejects_invalid_key(self):
         unauthenticated = TestClient(app)

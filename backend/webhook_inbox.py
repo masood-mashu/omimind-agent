@@ -1,9 +1,4 @@
-"""
-backend/webhook_inbox.py
-Durable webhook inbox and deduplication store backed by SQLite.
-Guarantees deduplication across process restarts and worker processes.
-Tracks event status (received, processing, completed, failed) and attempt counts.
-"""
+"""Local-development SQLite adapter and production inbox-store factory."""
 from __future__ import annotations
 
 import json
@@ -14,24 +9,22 @@ import tempfile
 import time
 from typing import Any
 
-from backend.config import is_testing
+from backend.config import is_testing, settings
+from backend.webhook_store import PayloadConflictError, WebhookStore
 
 logger = logging.getLogger("omimind.webhook_inbox")
 PROCESSING_LEASE_SECONDS = 300
+RETENTION_SECONDS = 72 * 60 * 60
 
 
 def _get_db_path() -> str:
+    if (settings.environment.lower() == "production" or os.environ.get("VERCEL")) and not is_testing():
+        raise RuntimeError("Production webhook inbox requires WEBHOOK_DATABASE_URL; local SQLite is development-only.")
     override = os.environ.get("WEBHOOK_INBOX_DB_PATH")
     if override:
         return override
     if is_testing():
         return os.path.join(tempfile.gettempdir(), f"omimind_test_inbox_{os.getpid()}.db")
-    if os.environ.get("VERCEL") or os.environ.get("AWS_LAMBDA_FUNCTION_NAME") or os.environ.get("LAMBDA_TASK_ROOT"):
-        raise RuntimeError(
-            "Durable webhook inbox storage is not configured for serverless runtime. "
-            "Set WEBHOOK_INBOX_DB_PATH to a genuinely persistent mounted database, "
-            "or deploy the webhook receiver on a stateful service."
-        )
     storage_dir = os.path.abspath("qdrant_storage")
     os.makedirs(storage_dir, exist_ok=True)
     return os.path.join(storage_dir, "webhook_inbox.db")
@@ -94,12 +87,18 @@ class WebhookInbox:
 
         with self._get_connection() as conn:
             conn.execute("BEGIN IMMEDIATE;")
+            conn.execute(
+                "DELETE FROM webhook_inbox WHERE status IN ('completed','failed') AND received_at < ?",
+                (now - RETENTION_SECONDS,),
+            )
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM webhook_inbox WHERE event_key = ?", (event_key,))
             existing = cursor.fetchone()
 
             if existing:
                 existing_dict = dict(existing)
+                if existing_dict["payload_hash"] != payload_hash:
+                    raise PayloadConflictError("Webhook event ID was previously used with a different payload.")
                 # If already completed, safe duplicate
                 if existing_dict["status"] == "completed":
                     return True, existing_dict
@@ -166,6 +165,7 @@ class WebhookInbox:
 
     def get_event(self, event_key: str) -> dict[str, Any] | None:
         """Retrieves durable event record."""
+        self.cleanup_expired()
         with self._get_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("SELECT * FROM webhook_inbox WHERE event_key = ?", (event_key,))
@@ -178,6 +178,30 @@ class WebhookInbox:
             conn.execute("DELETE FROM webhook_inbox")
             conn.commit()
 
+    def cleanup_expired(self, now: float | None = None) -> int:
+        cutoff = (now or time.time()) - RETENTION_SECONDS
+        with self._get_connection() as conn:
+            cur = conn.execute("DELETE FROM webhook_inbox WHERE status IN ('completed','failed') AND received_at < ?", (cutoff,))
+            conn.commit()
+            return cur.rowcount
 
-# Singleton instance
-default_webhook_inbox = WebhookInbox()
+    def delete_owner(self, owner_id: str) -> int:
+        with self._get_connection() as conn:
+            cur = conn.execute("DELETE FROM webhook_inbox WHERE uid = ?", (owner_id,))
+            conn.commit()
+            return cur.rowcount
+
+
+def _create_store() -> WebhookStore:
+    if is_testing():
+        return WebhookInbox()
+    durable_url = settings.database_url or settings.webhook_database_url
+    if durable_url:
+        from backend.stores.postgres_webhook_store import PostgresWebhookStore
+        return PostgresWebhookStore(durable_url)
+    if settings.environment.lower() == "production":
+        raise RuntimeError("Production webhook inbox requires DATABASE_URL or WEBHOOK_DATABASE_URL; local SQLite and /tmp are not durable shared storage.")
+    return WebhookInbox()
+
+
+default_webhook_inbox = _create_store()

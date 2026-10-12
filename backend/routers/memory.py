@@ -19,6 +19,7 @@ from backend.shared import (
     orchestrator,
     processed_cache_owners,
 )
+from backend.tenant_store import tenant_store
 
 logger = logging.getLogger("omimind.memory")
 router = APIRouter(tags=["Memory & Recall"])
@@ -77,9 +78,9 @@ def get_recent_memories(
 @router.get("/api/actions")
 def get_all_actions(user: AuthenticatedUser = Depends(get_current_user)):
     """Retrieve all extracted action items across processed meetings."""
-    actions = []
-    for m_id, dossier in iter_processed_for_user(user.uid):
-        if "action_items" in dossier:
+    actions = tenant_store.list_actions(user.uid)
+    if not actions:
+        for m_id, dossier in iter_processed_for_user(user.uid):
             for item in dossier.get("action_items", []):
                 act = dict(item)
                 act["source_meeting"] = dossier.get("title", m_id)

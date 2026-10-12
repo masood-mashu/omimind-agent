@@ -1,74 +1,49 @@
-"""
-backend/auth.py
-Centralized authentication and tenant authorization for OmiMind.
-
-Security Architecture:
-1. Server-side User Identity:
-   - For single-user deployments / demo hackathon mode, identity is derived from settings.default_user_id.
-   - Test-only tenant-scoped credentials may use a token suffix; production callers cannot mint tenant IDs.
-   - Callers cannot override their identity via query parameters, request bodies, or webhook payloads.
-2. Header-only Secrets:
-   - Authentication credentials in query parameters (api_key, key, token, secret) are strictly rejected with HTTP 401.
-   - Accepted headers: `Authorization: Bearer <token>` or `X-API-Key: <token>`.
-3. Constant-Time Comparison:
-   - All secret verification uses `hmac.compare_digest` to prevent timing attacks.
-4. Dedicated Omi Webhook Verification:
-   - Validates `OMI_WEBHOOK_SECRET` via `X-Omi-Webhook-Secret`, `X-Omi-Signature`, or `Authorization: Bearer <secret>`.
-   - Replay protection verifies `X-Omi-Timestamp` (within 5-minute tolerance window).
-   - Maps verified webhook credentials to the server-side user identity.
-"""
+"""Authentication and tenant identity for the multi-user OMIMIND service."""
 from __future__ import annotations
 
 import hashlib
 import hmac
 import logging
+import math
 import time
 from dataclasses import dataclass
+from functools import lru_cache
+from typing import Any
 
 from fastapi import HTTPException, Request
 
-from backend.config import is_testing, settings
+from backend.config import allow_test_tenant_overrides, is_testing, settings
 
 logger = logging.getLogger("omimind.auth")
-
 FORBIDDEN_QUERY_SECRETS = {"api_key", "key", "token", "secret"}
+COOKIE_NAME = "omimind_session"
+SESSION_MAX_AGE_SECONDS = 86400 * 7
 
 
 @dataclass(frozen=True)
 class AuthenticatedUser:
     uid: str
-    auth_type: str = "api_key"
+    auth_type: str = "supabase_jwt"
+    email: str | None = None
+    claims: dict[str, Any] | None = None
 
 
 def check_no_query_secrets(request: Request) -> None:
-    """Rejects authentication secrets supplied via query parameters."""
     for param in FORBIDDEN_QUERY_SECRETS:
         if param in request.query_params:
-            raise HTTPException(
-                status_code=401,
-                detail="Query-string credentials are not permitted. Use Authorization: Bearer <token> or X-API-Key header.",
-            )
+            raise HTTPException(status_code=401, detail="Query-string credentials are not permitted. Use an Authorization header.")
 
 
 def extract_header_token(request: Request) -> str | None:
-    """Extracts token from Authorization: Bearer <token> or X-API-Key header."""
     auth_header = request.headers.get("authorization", "").strip()
-    if auth_header.startswith("Bearer "):
+    if auth_header.lower().startswith("bearer "):
         token = auth_header[7:].strip()
         if token:
             return token
-    x_api_key = request.headers.get("x-api-key", "").strip()
-    if x_api_key:
-        return x_api_key
-    return None
-
-
-COOKIE_NAME = "omimind_session"
-SESSION_MAX_AGE_SECONDS = 86400 * 7  # 7 days
+    return request.headers.get("x-api-key", "").strip() or None
 
 
 def create_session_token(uid: str, secret: str) -> str:
-    """Generates an HMAC-signed session token for the user."""
     timestamp = int(time.time())
     payload = f"{uid}:{timestamp}".encode()
     sig = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
@@ -76,163 +51,137 @@ def create_session_token(uid: str, secret: str) -> str:
 
 
 def verify_session_token(token: str, secret: str) -> str | None:
-    """Verifies HMAC signature and expiration of session token. Returns verified UID or None."""
     parts = token.split(":")
     if len(parts) != 3:
         return None
     uid, timestamp_str, sig = parts
     try:
         ts = int(timestamp_str)
-        # Check expiration (7 days) and clock skew tolerance (300s into future)
-        if time.time() - ts > SESSION_MAX_AGE_SECONDS or ts > time.time() + 300:
-            return None
     except ValueError:
         return None
-    expected_payload = f"{uid}:{timestamp_str}".encode()
-    expected_sig = hmac.new(secret.encode(), expected_payload, hashlib.sha256).hexdigest()
-    if not hmac.compare_digest(sig, expected_sig):
+    if time.time() - ts > SESSION_MAX_AGE_SECONDS or ts > time.time() + 300:
         return None
+    expected = hmac.new(secret.encode(), f"{uid}:{timestamp_str}".encode(), hashlib.sha256).hexdigest()
+    if not hmac.compare_digest(sig, expected):
+        return None
+    return uid
 
-    # In production, session token can only be the configured default user
-    if uid == settings.default_user_id:
-        return uid
-    if is_testing() and uid.strip():
-        return uid.strip()
+
+@lru_cache(maxsize=4)
+def _jwks_client(jwks_url: str):
+    try:
+        from jwt import PyJWKClient
+    except ImportError as exc:
+        raise RuntimeError("PyJWT is required for Supabase authentication.") from exc
+    return PyJWKClient(jwks_url)
+
+
+def verify_supabase_token(token: str) -> AuthenticatedUser:
+    if not settings.supabase_url:
+        raise HTTPException(status_code=503, detail="Supabase authentication is not configured.")
+    jwks_url = settings.supabase_jwks_url or f"{settings.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+    issuer = f"{settings.supabase_url.rstrip('/')}/auth/v1"
+    try:
+        import jwt
+
+        signing_key = _jwks_client(jwks_url).get_signing_key_from_jwt(token).key
+        claims = jwt.decode(
+            token,
+            signing_key,
+            algorithms=["RS256", "ES256"],
+            audience="authenticated",
+            issuer=issuer,
+            options={"require": ["sub", "exp", "iat"]},
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.info("Supabase token rejected: %s", exc.__class__.__name__)
+        raise HTTPException(status_code=401, detail="Invalid or expired authentication session.") from exc
+    uid = str(claims.get("sub", "")).strip()
+    if not uid:
+        raise HTTPException(status_code=401, detail="Authentication session has no user identity.")
+    return AuthenticatedUser(uid=uid, email=claims.get("email"), claims=claims)
+
+
+def _verify_local_compat_token(token: str) -> AuthenticatedUser | None:
+    if not (is_testing() or settings.environment.lower() != "production"):
+        return None
+    secret = settings.api_secret_key
+    if secret and hmac.compare_digest(token, secret):
+        return AuthenticatedUser(uid=settings.default_user_id or "local-user", auth_type="local_api_key")
+    if is_testing() and token in {"test-secret", "test-user"}:
+        return AuthenticatedUser(uid="test-user", auth_type="test_token")
+    if is_testing() and allow_test_tenant_overrides() and (token.startswith("test-secret:") or (secret and token.startswith(f"{secret}:"))):
+        candidate = token.split(":", 1)[1].strip()
+        if candidate:
+            return AuthenticatedUser(uid=candidate, auth_type="test_token")
     return None
 
 
 def get_current_user(request: Request) -> AuthenticatedUser:
-    """
-    Validates API authentication headers or HttpOnly session cookie
-    and derives the server-side user identity.
-    Does NOT trust caller-supplied UID in query or body.
-    """
     check_no_query_secrets(request)
-
-    secret = settings.api_secret_key
-    if not secret:
-        raise HTTPException(
-            status_code=503,
-            detail="This endpoint is disabled until API_SECRET_KEY is configured.",
-        )
-
-    # 1. Check header token (Authorization: Bearer or X-API-Key)
     token = extract_header_token(request)
     if token:
-        is_valid_token = hmac.compare_digest(token, secret) or (is_testing() and token == "test-secret")
-        uid: str | None = settings.default_user_id if is_valid_token else None
-        if uid is None and is_testing() and ":" in token:
-            prefix, candidate_uid = token.split(":", 1)
-            if (hmac.compare_digest(prefix, secret) or prefix == "test-secret") and candidate_uid.strip():
-                uid = candidate_uid.strip()
-
-        if not uid:
-            raise HTTPException(
-                status_code=401,
-                detail="Invalid API key or credentials.",
-            )
-        return AuthenticatedUser(uid=uid, auth_type="api_key")
-
-    # 2. Check session cookie
+        local_user = _verify_local_compat_token(token)
+        return local_user or verify_supabase_token(token)
     cookie_token = request.cookies.get(COOKIE_NAME)
-    if cookie_token:
-        verified_uid = verify_session_token(cookie_token, secret)
-        if verified_uid:
-            return AuthenticatedUser(uid=verified_uid, auth_type="session_cookie")
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired session cookie.",
-        )
-
-    raise HTTPException(
-        status_code=401,
-        detail="Missing authentication credentials. Provide Authorization: Bearer <token>, X-API-Key header, or active session.",
-    )
+    if cookie_token and settings.api_secret_key and (is_testing() or settings.environment.lower() != "production"):
+        uid = verify_session_token(cookie_token, settings.api_secret_key)
+        if uid:
+            return AuthenticatedUser(uid=uid, auth_type="legacy_session")
+        raise HTTPException(status_code=401, detail="Invalid or expired session cookie.")
+    raise HTTPException(status_code=401, detail="Missing authentication credentials. Sign in to continue.")
 
 
 def _verify_webhook_timestamp(request: Request) -> None:
-    """Validate webhook timestamp freshness when provided."""
     ts_header = request.headers.get("x-omi-timestamp") or request.headers.get("x-timestamp")
-    if not ts_header:
+    if not ts_header and allow_test_tenant_overrides():
         return
+    if not ts_header:
+        raise HTTPException(status_code=401, detail="Missing webhook timestamp header.")
     try:
         req_time = float(ts_header)
-        if abs(time.time() - req_time) > 300:  # 5-minute tolerance window
-            raise HTTPException(
-                status_code=401,
-                detail="Webhook timestamp expired or outside allowable 5-minute window.",
-            )
     except ValueError as exc:
-        raise HTTPException(
-            status_code=401,
-            detail="Malformed webhook timestamp header.",
-        ) from exc
+        raise HTTPException(status_code=401, detail="Malformed webhook timestamp header.") from exc
+    if not math.isfinite(req_time) or req_time > time.time() + 300 or time.time() - req_time > 300:
+        raise HTTPException(status_code=401, detail="Webhook timestamp expired or outside allowable 5-minute window.")
 
 
 def _match_webhook_secret(supplied_token: str, secret: str) -> tuple[bool, str | None]:
-    """Match the provisioned webhook secret to the configured tenant."""
-    if hmac.compare_digest(supplied_token, secret):
-        return True, settings.default_user_id
-    if is_testing() and (supplied_token == "test-secret" or supplied_token == "test-secret:test_user"):
-        return True, settings.default_user_id
-    if is_testing() and ":" in supplied_token:
+    if secret and hmac.compare_digest(supplied_token, secret):
+        return True, settings.default_user_id or None
+    if is_testing() and allow_test_tenant_overrides() and ":" in supplied_token:
         prefix, candidate_uid = supplied_token.split(":", 1)
-        if (hmac.compare_digest(prefix, secret) or prefix == "test-secret") and candidate_uid.strip():
+        if (prefix == "test-secret" or (secret and hmac.compare_digest(prefix, secret))) and candidate_uid.strip():
             return True, candidate_uid.strip()
     return False, None
 
 
 async def verify_omi_webhook(request: Request) -> AuthenticatedUser:
-    """
-    Validates Omi webhook credentials and maps to configured server-side identity.
-    Enforces constant-time comparison, replay protection, and header-only authentication.
-    Supports official Omi mobile app endpoints which do not allow header customization.
-    """
     check_no_query_secrets(request)
     _verify_webhook_timestamp(request)
-
     signature = request.headers.get("x-omi-signature", "").strip()
     supplied_token = (
         request.headers.get("x-omi-webhook-secret", "").strip()
         or request.headers.get("x-webhook-secret", "").strip()
         or extract_header_token(request)
     )
-
-    is_mobile_app_endpoint = request.url.path in ("/omi/conversation", "/omi/realtime")
-
-    if not signature and not supplied_token:
-        if is_mobile_app_endpoint and not is_testing():
-            uid = request.query_params.get("uid") or settings.default_user_id
-            return AuthenticatedUser(uid=uid, auth_type="mobile_app")
-        raise HTTPException(
-            status_code=401,
-            detail="Missing webhook authentication credentials. Provide X-Omi-Webhook-Secret header.",
-        )
-
-    webhook_secret = settings.omi_webhook_secret or settings.api_secret_key
-    if not webhook_secret:
-        if is_mobile_app_endpoint and not is_testing():
-            uid = request.query_params.get("uid") or settings.default_user_id
-            return AuthenticatedUser(uid=uid, auth_type="mobile_app")
-        raise HTTPException(
-            status_code=503,
-            detail="Webhook authentication not configured.",
-        )
-
+    secret = settings.omi_webhook_secret or settings.api_secret_key
+    if not secret:
+        raise HTTPException(status_code=503, detail="Webhook authentication is not configured.")
+    matched_uid = ""
     if signature:
         timestamp = request.headers.get("x-omi-timestamp") or request.headers.get("x-timestamp")
         body = await request.body()
-        signed_payload = f"{timestamp}.{body.decode('utf-8')}".encode()
-        expected = hmac.new(webhook_secret.encode("utf-8"), signed_payload, hashlib.sha256).hexdigest()
-        provided = signature.removeprefix("sha256=")
-        is_valid = hmac.compare_digest(provided, expected)
-        user_id = settings.default_user_id if is_valid else None
+        if not timestamp or not body:
+            raise HTTPException(status_code=401, detail="Signed webhooks require timestamp and raw request body.")
+        expected = hmac.new(secret.encode(), timestamp.encode() + b"." + body, hashlib.sha256).hexdigest()
+        valid = hmac.compare_digest(signature.removeprefix("sha256="), expected)
+        matched_uid = settings.default_user_id or ""
     else:
-        is_valid, user_id = _match_webhook_secret(supplied_token, webhook_secret)
-    if not is_valid or not user_id:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid webhook credentials.",
-        )
-
-    return AuthenticatedUser(uid=user_id, auth_type="webhook")
+        valid, matched = _match_webhook_secret(supplied_token or "", secret)
+        matched_uid = matched or ""
+    if not valid:
+        raise HTTPException(status_code=401, detail="Invalid webhook credentials.")
+    return AuthenticatedUser(uid=matched_uid, auth_type="webhook")

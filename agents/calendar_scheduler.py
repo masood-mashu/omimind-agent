@@ -56,7 +56,7 @@ class LyzrCalendarScheduler:
             params = {
                 "action": "TEMPLATE",
                 "text": title,
-                "details": f"Automated OmiMind follow-up scheduled from ambient voice session by {speaker}.\nContext: \"{text}\"",
+                "details": f"Automated OMIMIND follow-up scheduled from ambient voice session by {speaker}.\nContext: \"{text}\"",
                 "location": "Google Meet / Omi Ambient Room"
             }
             gcal_url = f"https://calendar.google.com/calendar/render?{urllib.parse.urlencode(params)}"
@@ -81,14 +81,14 @@ class LyzrCalendarScheduler:
         Generates standard RFC 5545 iCalendar content for calendar client import (.ics).
         """
         now_str = datetime.now(UTC).strftime("%Y%m%dT%H%M%SZ")
-        title = event.get("title", "OmiMind Meeting")
-        desc = event.get("details", event.get("description", "Scheduled via OmiMind Voice Agent."))
+        title = event.get("title", "OMIMIND Meeting")
+        desc = event.get("details", event.get("description", "Scheduled via OMIMIND Voice Agent."))
         title_hash = str(abs(hash(title)))[:8]
 
         lines = [
             "BEGIN:VCALENDAR",
             "VERSION:2.0",
-            "PRODID:-//OmiMind//Autonomous Chief of Staff//EN",
+            "PRODID:-//OMIMIND//Meeting Assistant//EN",
             "CALSCALE:GREGORIAN",
             "METHOD:PUBLISH",
             "BEGIN:VEVENT",

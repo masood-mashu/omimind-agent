@@ -1,6 +1,6 @@
-# ⚡ OmiMind End-to-End Execution Flow
+# ⚡ OMIMIND End-to-End Execution Flow
 
-This document details the complete runtime execution path of **OmiMind: Ambient Voice Memory & Autonomous Chief of Staff** from ambient voice capture through vectorization, multi-agent reasoning, and delivery.
+This document details the complete runtime execution path of **OMIMIND: Ambient Voice Memory & Autonomous Chief of Staff** from ambient voice capture through vectorization, multi-agent reasoning, and delivery.
 
 ---
 
@@ -19,7 +19,7 @@ sequenceDiagram
 
     Note over Attendee,Omi: Phase 1: Ambient Capture & Diarisation
     Attendee->>Omi: Spoken discussion & verbal commitments
-    Omi->>FastAPIServer: POST /omi/conversation or /api/omi-webhook
+    Omi->>FastAPIServer: POST /omi/conversation/{connection_token} or /omi/realtime/{connection_token}
     FastAPIServer-->>Omi: HTTP 200 OK (< 50ms fast-ack)
 
     Note over FastAPIServer,Swarm: Phase 2: Live SSE Qdrant → Lyzr Pipeline
@@ -75,7 +75,7 @@ sequenceDiagram
 ## 🔍 Detailed Phase Breakdown
 
 ### Phase 1: Ingestion & Speaker Diarisation
-1. **Omi Device Webhook:** The Omi AI Wearable streams audio chunks or completed conversation payloads to `POST /omi/conversation` or `POST /api/omi-webhook`.
+1. **Omi Device Webhook:** A paired Omi device streams audio chunks or completed conversation payloads to `POST /omi/conversation/{connection_token}` or `POST /omi/realtime/{connection_token}`.
 2. **Sub-50ms Fast-Ack:** The server acknowledges incoming requests immediately with `{"status": "ok"}` to prevent mobile client timeouts.
 3. **Speaker Normalization:** Transcripts are normalized into speaker segments containing `speaker`, `timestamp`, `timestamp_str`, `session_id`, and `text`.
 
