@@ -151,7 +151,7 @@ def _verify_webhook_timestamp(request: Request) -> None:
 
 def _match_webhook_secret(supplied_token: str, secret: str) -> tuple[bool, str | None]:
     if secret and hmac.compare_digest(supplied_token, secret):
-        return True, settings.default_user_id or None
+        return True, settings.default_user_id or "local-user"
     if is_testing() and allow_test_tenant_overrides() and ":" in supplied_token:
         prefix, candidate_uid = supplied_token.split(":", 1)
         if (prefix == "test-secret" or (secret and hmac.compare_digest(prefix, secret))) and candidate_uid.strip():
@@ -179,10 +179,12 @@ async def verify_omi_webhook(request: Request) -> AuthenticatedUser:
             raise HTTPException(status_code=401, detail="Signed webhooks require timestamp and raw request body.")
         expected = hmac.new(secret.encode(), timestamp.encode() + b"." + body, hashlib.sha256).hexdigest()
         valid = hmac.compare_digest(signature.removeprefix("sha256="), expected)
-        matched_uid = settings.default_user_id or ""
+        matched_uid = settings.default_user_id or "local-user"
     else:
         valid, matched = _match_webhook_secret(supplied_token or "", secret)
         matched_uid = matched or ""
     if not valid:
         raise HTTPException(status_code=401, detail="Invalid webhook credentials.")
+    if is_testing() and allow_test_tenant_overrides() and request.query_params.get("uid"):
+        matched_uid = request.query_params["uid"].strip()
     return AuthenticatedUser(uid=matched_uid, auth_type="webhook")
