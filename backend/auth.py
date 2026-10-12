@@ -151,7 +151,7 @@ def _verify_webhook_timestamp(request: Request) -> None:
 
 def _match_webhook_secret(supplied_token: str, secret: str) -> tuple[bool, str | None]:
     if secret and hmac.compare_digest(supplied_token, secret):
-        return True, settings.default_user_id or "local-user"
+        return True, settings.default_user_id or None
     if is_testing() and allow_test_tenant_overrides() and ":" in supplied_token:
         prefix, candidate_uid = supplied_token.split(":", 1)
         if (prefix == "test-secret" or (secret and hmac.compare_digest(prefix, secret))) and candidate_uid.strip():
