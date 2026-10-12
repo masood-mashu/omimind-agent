@@ -130,7 +130,7 @@ def get_current_user(request: Request) -> AuthenticatedUser:
     if cookie_token and settings.api_secret_key and (is_testing() or settings.environment.lower() != "production"):
         uid = verify_session_token(cookie_token, settings.api_secret_key)
         if uid:
-            return AuthenticatedUser(uid=uid, auth_type="legacy_session")
+            return AuthenticatedUser(uid=uid, auth_type="session_cookie")
         raise HTTPException(status_code=401, detail="Invalid or expired session cookie.")
     raise HTTPException(status_code=401, detail="Missing authentication credentials. Sign in to continue.")
 

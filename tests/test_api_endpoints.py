@@ -174,7 +174,7 @@ class TestApiEndpoints:
         assert "context" in data
 
     def test_forget_endpoint(self, client):
-        client.post("/omi/realtime?uid=test-user&session_id=rt_test_forget", json={"segments": [{"speaker": "A", "text": "hello"}]}, headers={
+        client.post("/omi/realtime?uid=local-user&session_id=rt_test_forget", json={"segments": [{"speaker": "A", "text": "hello"}]}, headers={
             "X-Omi-Webhook-Secret": "test-secret", "X-Omi-Timestamp": str(time.time()),
         })
         resp = client.post("/api/forget?session_id=rt_test_forget")
