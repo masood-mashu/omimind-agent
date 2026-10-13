@@ -23,7 +23,7 @@ export function renderAsk(container, initialQuery = '') {
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-white/5 pb-4">
         <div>
           <h1 class="text-xl sm:text-2xl font-bold text-white flex items-center gap-2.5">
-            <span class="text-cyan-400">✦</span>
+            <span class="text-teal-400">✦</span>
             <span>Ask OMIMIND</span>
           </h1>
           <p class="text-xs sm:text-sm text-slate-300 mt-0.5">
@@ -31,7 +31,7 @@ export function renderAsk(container, initialQuery = '') {
           </p>
         </div>
         <div class="flex items-center gap-2 text-xs">
-          <span class="px-2.5 py-1 rounded-full bg-cyan-500/10 text-cyan-300 border border-cyan-500/20 font-mono-tech text-[11px]">
+          <span class="px-2.5 py-1 rounded-full bg-teal-500/10 text-teal-300 border border-teal-500/20 font-mono-tech text-[11px]">
             Lyzr Recall Agent • Qdrant Grounding
           </span>
         </div>
@@ -100,16 +100,16 @@ export function renderAsk(container, initialQuery = '') {
             <span>+ Type Note</span>
           </button>
           <span class="text-slate-400 text-[11px] font-medium flex-shrink-0">Suggestions:</span>
-          <button type="button" class="ask-suggest-chip touch-target-44 px-3 py-1.5 rounded-lg bg-indigo-950/40 hover:bg-indigo-900/50 text-cyan-300 hover:text-white border border-cyan-500/30 transition text-xs whitespace-nowrap" data-query="What budget was approved for Project Horizon?">
+          <button type="button" class="ask-suggest-chip query-pill cursor-pointer whitespace-nowrap" data-query="What budget was approved for Project Horizon?">
             "What budget was approved for Project Horizon?"
           </button>
-          <button type="button" class="ask-suggest-chip touch-target-44 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-white/10 transition text-xs whitespace-nowrap" data-query="What did I say about Project Nebula?">
+          <button type="button" class="ask-suggest-chip query-pill cursor-pointer whitespace-nowrap" data-query="What did I say about Project Nebula?">
             "What did I say about Project Nebula?"
           </button>
-          <button type="button" class="ask-suggest-chip touch-target-44 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-white/10 transition text-xs whitespace-nowrap" data-query="What did Sarah say about the budget?">
+          <button type="button" class="ask-suggest-chip query-pill cursor-pointer whitespace-nowrap" data-query="What did Sarah say about the budget?">
             "What did Sarah say about the budget?"
           </button>
-          <button type="button" class="ask-suggest-chip touch-target-44 px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-white/10 transition text-xs whitespace-nowrap" data-query="What were the critical action items?">
+          <button type="button" class="ask-suggest-chip query-pill cursor-pointer whitespace-nowrap" data-query="What were the critical action items?">
             "What were the critical action items?"
           </button>
         </div>

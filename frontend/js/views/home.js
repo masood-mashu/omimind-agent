@@ -20,273 +20,206 @@ export function renderHome(container) {
   const persistenceMode = state.health?.qdrant_persistence_mode ?? 'Configured storage';
 
   container.innerHTML = `
-    <div class="view-container max-w-6xl mx-auto space-y-10 py-4 px-4 sm:px-6">
+    <div class="view-container max-w-6xl mx-auto space-y-8 py-4 px-4 sm:px-6">
       
-      <!-- Hero Section -->
-      <section class="text-center space-y-4 pt-6 pb-2">
-        <div class="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-cyan-500/10 border border-cyan-500/20 text-cyan-300 text-xs font-medium">
-          <span class="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-          <span>Single-user demo • Sample meetings ready</span>
-        </div>
-        <h1 class="text-3xl sm:text-5xl font-extrabold tracking-tight text-white">
-          Your conversations, remembered.<br>
-          <span class="bg-gradient-to-r from-cyan-400 via-sky-300 to-indigo-400 bg-clip-text text-transparent">
-            Your meetings, understood.
-          </span>
-        </h1>
-        <p class="text-sm sm:text-base text-slate-400 max-w-2xl mx-auto">
-          Try a sample meeting, process its transcript, then review the summary, decisions, and follow-up drafts in one place.
-        </p>
+      <!-- Central Ingestion Hub: What do you want OMIMIND to remember? (Inspired by OmniMind Dashboard) -->
+      <section class="omi-card p-6 border border-white/10 shadow-2xl relative overflow-hidden bg-gradient-to-b from-[#0f1523] to-[#090d14]">
+        <div class="absolute -right-20 -top-20 w-72 h-72 bg-teal-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div class="absolute -left-20 -bottom-20 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
 
-        <a href="#meetings" class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-sm font-semibold transition">
-          Choose a sample meeting <span aria-hidden="true">→</span>
-        </a>
-
-        <!-- Dominant Ask Bar (Command Surface) -->
-        <div class="max-w-3xl mx-auto mt-6">
-          <form id="home-ask-form" class="relative group">
-            <div class="absolute -inset-0.5 bg-gradient-to-r from-cyan-500 via-blue-600 to-indigo-600 rounded-2xl blur opacity-25 group-hover:opacity-40 transition duration-300"></div>
-            <div class="relative flex items-center bg-[#0e131f] border border-white/10 rounded-2xl p-2 shadow-2xl">
-              <div class="pl-3.5 text-cyan-400 flex items-center">
-                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-              </div>
-              <input 
-                id="home-ask-input" 
-                type="text" 
-                placeholder="Ask anything you've heard (e.g. What did I say about Project Nebula?)"
-                autocomplete="off"
-                class="w-full bg-transparent border-none py-3 px-3 text-sm sm:text-base text-white placeholder-slate-400 focus:outline-none"
-              />
-              <div class="hidden sm:flex items-center gap-1.5 mr-2 px-2 py-1 rounded-md bg-slate-800/80 border border-white/10 text-[11px] font-mono-tech text-slate-400">
-                <span>⌘K</span>
-              </div>
-              <button 
-                type="submit" 
-                class="touch-target-44 px-5 py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-semibold text-xs sm:text-sm shadow-md transition flex items-center gap-1.5 flex-shrink-0"
-              >
-                <span>Ask</span>
-                <span class="hidden sm:inline">OMIMIND</span>
-                <svg class="w-4 h-4 ml-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
-              </button>
+        <div class="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-6 pb-6 border-b border-white/5 relative z-10">
+          <div class="flex items-center gap-4">
+            <div class="orb-container flex-shrink-0">
+              <div class="orb-sphere"></div>
+              <div class="orb-glow"></div>
             </div>
-          </form>
-
-          <!-- Prompt Pills -->
-          <div class="flex flex-wrap items-center justify-center gap-2 mt-3.5 text-xs">
-            <span class="text-slate-400 text-[11px] font-medium mr-1">Try asking:</span>
-            <button type="button" class="home-pill px-3 py-1.5 rounded-lg bg-indigo-950/50 hover:bg-indigo-900/60 text-cyan-300 hover:text-white border border-cyan-500/30 transition" data-query="What budget was approved for Project Horizon?">
-              "What budget was approved for Project Horizon?"
-            </button>
-            <button type="button" class="home-pill px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-white/10 transition" data-query="What did I say about Project Nebula?">
-              "What did I say about Project Nebula?"
-            </button>
-            <button type="button" class="home-pill px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-white/10 transition" data-query="What did Sarah say about the budget?">
-              "What did Sarah say about the budget?"
-            </button>
-            <button type="button" class="home-pill px-3 py-1.5 rounded-lg bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white border border-white/10 transition" data-query="What actions do I need to follow up on?">
-              "What actions do I need to follow up on?"
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <!-- Live Ambient Status & Audio Bar -->
-      <section class="omi-card p-5 border border-white/10 shadow-lg">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div class="flex items-center gap-3">
-            <div class="w-3 h-3 rounded-full bg-emerald-400 live-indicator text-emerald-400"></div>
-            <div>
-              <div class="flex items-center gap-2">
-                <span class="font-bold text-sm text-white">Memory store status</span>
-                <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  Vector storage (${persistenceMode})
-                </span>
+            <div class="space-y-1">
+              <div class="inline-flex items-center gap-2 px-2.5 py-0.5 rounded-full bg-teal-500/10 border border-teal-500/20 text-teal-300 text-[10px] font-mono-tech">
+                <span class="w-1.5 h-1.5 rounded-full bg-teal-400 animate-pulse"></span>
+                <span>AMBIENT INTELLIGENCE HUB</span>
               </div>
-              <p class="text-xs text-slate-400 mt-0.5">
-                No live wearable connected. Telemetry below is simulated. ${qdrantPoints} vectors reported by the service.
+              <h1 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                What do you want me to remember?
+              </h1>
+              <p class="text-xs sm:text-sm text-slate-400 max-w-xl">
+                Speak it, type it, or process a meeting transcript. OMIMIND vectors, reasons, and dispatches.
               </p>
             </div>
           </div>
-          <div class="flex items-center gap-2 sm:gap-2.5 flex-wrap">
-            <button id="btn-home-type" type="button" class="touch-target-44 px-3.5 py-2 rounded-xl bg-indigo-950/50 hover:bg-indigo-900/60 text-xs font-semibold text-indigo-300 hover:text-white border border-indigo-500/30 flex items-center gap-2 transition" title="Type notes or meeting data directly">
-              <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
-              <span>Type Note</span>
+
+          <!-- Multi-Modal Action Toolbar -->
+          <div class="flex items-center gap-2 sm:gap-2.5 flex-wrap flex-shrink-0">
+            <button id="btn-home-mic" type="button" class="btn-mint-cta text-xs touch-target-44 shadow-lg shadow-teal-500/20">
+              <svg class="w-4 h-4 text-teal-950" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z"/></svg>
+              <span id="home-mic-text">Record voice note</span>
             </button>
-            <button id="btn-home-mic" type="button" class="touch-target-44 px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-xs font-semibold text-cyan-300 border border-white/10 flex items-center gap-2 transition">
-              <svg class="w-4 h-4 text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 100-6 3 3 0 000 6z"/></svg>
-              <span id="home-mic-text">Record Voice</span>
+            <button id="btn-home-type" type="button" class="touch-target-44 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-xs font-semibold text-slate-300 hover:text-white border border-white/10 flex items-center gap-2 transition" title="Type notes directly">
+              <svg class="w-3.5 h-3.5 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+              <span>Type note</span>
             </button>
-            <button id="btn-quick-sync" type="button" class="touch-target-44 px-3.5 py-2 rounded-xl bg-cyan-600/20 hover:bg-cyan-600/30 text-cyan-300 border border-cyan-500/30 text-xs font-semibold transition">
-              Refresh Memory
+            <a href="#meetings" class="touch-target-44 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-xs font-semibold text-slate-300 hover:text-white border border-white/10 flex items-center gap-2 transition" title="Choose a sample meeting">
+              <svg class="w-3.5 h-3.5 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+              <span>Sample meetings</span>
+            </a>
+            <button id="btn-quick-sync" type="button" class="touch-target-44 px-3 py-2 rounded-xl bg-white/5 hover:bg-white/10 text-slate-400 hover:text-white border border-white/10 text-xs font-medium transition" title="Sync memory points">
+              Refresh
             </button>
           </div>
         </div>
-        <!-- Waveform: live microphone input while recording, decorative idle animation otherwise -->
+
+        <!-- Direct Ingest Box & Category Tagging -->
+        <div class="mt-5 space-y-3 relative z-10">
+          <form id="home-inline-ingest-form" class="space-y-3">
+            <div class="relative bg-slate-950/80 border border-white/10 rounded-2xl p-2.5 focus-within:border-teal-500/50 transition shadow-inner">
+              <textarea 
+                id="home-inline-type-input" 
+                rows="2" 
+                placeholder="Remember that... (e.g. Approved $120k cloud budget for Project Horizon, Sarah leading API v2 migration by Thursday)..." 
+                class="w-full bg-transparent border-none p-2 text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none resize-none font-sans"
+              ></textarea>
+              
+              <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2 border-t border-white/5 text-xs">
+                <div class="flex items-center gap-2 text-slate-400 font-mono-tech text-[11px]">
+                  <span>Category:</span>
+                  <span class="px-2 py-0.5 rounded bg-white/5 text-teal-300 border border-white/5">Engineering</span>
+                  <span class="text-slate-600">•</span>
+                  <span class="text-slate-500">Vectorized via FastEmbed into Qdrant</span>
+                </div>
+                
+                <button 
+                  type="submit" 
+                  id="btn-home-inline-submit"
+                  class="touch-target-44 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-semibold text-xs shadow-md transition flex items-center justify-center gap-1.5 flex-shrink-0"
+                >
+                  <span>Index Note</span>
+                  <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
+                </button>
+              </div>
+            </div>
+          </form>
+
+          <p class="text-[10px] text-slate-500 font-mono-tech">
+            FastEmbed: 384d dense vectors • Qdrant Cloud collection: <code class="text-teal-400">omi_ambient_memory</code> • Lyzr Studio swarm reasoning.
+          </p>
+        </div>
+
+        <!-- Waveform Canvas -->
         <div class="mt-4 pt-3 border-t border-white/5">
-          <canvas id="ambient-waveform" width="800" height="36" class="w-full h-9 rounded-lg"></canvas>
-          <p class="text-[10px] text-slate-500 mt-1">Idle waveform is decorative; live audio appears only while microphone recording is active.</p>
-        </div>
-
-        <!-- Wearable Hardware Telemetry Sub-bar (from Stitch Obsidian Telemetry) -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-3 border-t border-white/5 text-[11px] font-mono-tech">
-          <div class="p-2 rounded-xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
-              <span class="text-slate-400">Wearable status</span>
-            <span class="text-emerald-400 font-bold flex items-center gap-1">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              Simulated
-            </span>
-          </div>
-          <div class="p-2 rounded-xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
-            <span class="text-slate-400">Connection</span>
-            <span class="text-cyan-300 font-bold">No live device</span>
-          </div>
-          <div class="p-2 rounded-xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
-            <span class="text-slate-400">Telemetry</span>
-            <span class="text-indigo-300 font-bold">Illustrative</span>
-          </div>
-          <div class="p-2 rounded-xl bg-slate-950/60 border border-white/5 flex items-center justify-between">
-            <span class="text-slate-400">Data source</span>
-            <span class="text-purple-300 font-bold">Demo values</span>
+          <canvas id="ambient-waveform" width="800" height="32" class="w-full h-8 rounded-lg"></canvas>
+          <div class="flex items-center justify-between text-[10px] text-slate-500 mt-1">
+            <span>Waveform shows live audio while mic recording; decorative while idle.</span>
+            <span class="font-mono-tech text-teal-400">${qdrantPoints} vectors in storage</span>
           </div>
         </div>
 
-        <!-- Dedicated Direct Typing Input Box -->
-        <div class="mt-4 pt-3.5 border-t border-white/5">
-          <form id="home-inline-ingest-form" class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-            <div class="flex items-center gap-2 text-xs text-indigo-300 font-mono-tech flex-shrink-0">
-              <span class="w-2 h-2 rounded-full bg-indigo-400 animate-pulse"></span>
-              <span>Direct Ingest:</span>
+      </section>
+
+      <!-- Command Ask Bar Surface -->
+      <section class="max-w-3xl mx-auto space-y-3">
+        <form id="home-ask-form" class="relative group">
+          <div class="absolute -inset-0.5 bg-gradient-to-r from-teal-500 to-indigo-600 rounded-2xl blur opacity-20 group-hover:opacity-35 transition"></div>
+          <div class="relative flex items-center bg-[#0f1523] border border-white/10 rounded-2xl p-2 shadow-xl">
+            <div class="pl-3.5 text-teal-400 flex items-center">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
             </div>
             <input 
-              id="home-inline-type-input" 
+              id="home-ask-input" 
               type="text" 
-              placeholder="Type note, memo, or decision directly to vectorize into Qdrant (Press Enter)..." 
+              placeholder="Ask anything you've heard... (e.g. What budget was approved for Project Horizon?)"
               autocomplete="off"
-              class="flex-1 bg-slate-900/90 border border-white/10 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-indigo-500 font-mono-tech transition"
+              class="w-full bg-transparent border-none py-2.5 px-3 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none"
             />
+            <div class="hidden sm:flex items-center mr-2 px-2 py-1 rounded bg-slate-800 text-[10px] font-mono-tech text-slate-400">
+              <span>⌘K</span>
+            </div>
             <button 
               type="submit" 
-              id="btn-home-inline-submit"
-              class="touch-target-44 px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-semibold text-xs shadow-md transition flex items-center justify-center gap-1.5 flex-shrink-0"
+              class="touch-target-44 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white font-semibold text-xs shadow-md transition flex items-center gap-1.5 flex-shrink-0"
             >
-              <span>Index Note</span>
+              <span>Ask OMIMIND</span>
               <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
             </button>
-          </form>
+          </div>
+        </form>
+
+        <!-- Prompt Pills -->
+        <div class="flex flex-wrap items-center justify-center gap-2 text-xs">
+          <span class="text-slate-400 text-[11px] font-medium mr-1">Sample prompts:</span>
+          <button type="button" class="home-pill query-pill cursor-pointer" data-query="What budget was approved for Project Horizon?">
+            "What budget was approved for Project Horizon?"
+          </button>
+          <button type="button" class="home-pill query-pill cursor-pointer" data-query="What did Sarah say about the budget?">
+            "What did Sarah say about the budget?"
+          </button>
+          <button type="button" class="home-pill query-pill cursor-pointer" data-query="What actions do I need to follow up on?">
+            "What actions do I need to follow up on?"
+          </button>
         </div>
       </section>
 
-        <!-- Pipeline overview; static statuses are illustrative, not live activity -->
-      <section class="omi-card p-5 border border-white/10 shadow-2xl relative overflow-hidden">
-        <div class="absolute -right-16 -top-16 w-64 h-64 bg-cyan-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div class="absolute -left-16 -bottom-16 w-64 h-64 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
-
-        <!-- Section Header -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-white/5 gap-2 relative z-10">
-          <div class="flex items-center gap-2.5">
-            <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-cyan-500/20">
-              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-            </div>
-            <div>
-              <div class="flex items-center gap-2">
-                <h2 class="text-sm font-bold text-white tracking-wide">How meeting processing works</h2>
-                <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
-                  Pipeline overview
-                </span>
-              </div>
-              <p class="text-[11px] text-slate-400 font-mono-tech mt-0.5">Illustrative stages. Per-meeting activity appears after you process a transcript.</p>
-            </div>
+      <!-- 3 Telemetry Stat Cards -->
+      <section class="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+        <div class="p-4 rounded-2xl bg-[#0f1523] border border-white/5 flex items-center justify-between">
+          <div>
+            <span class="text-[10px] font-mono-tech uppercase tracking-wider text-slate-400">Vector Points</span>
+            <div class="text-2xl font-bold text-white mt-0.5">${qdrantPoints}</div>
+            <span class="text-[10px] text-teal-400 font-mono-tech">Qdrant Cloud (${persistenceMode})</span>
           </div>
+          <div class="w-10 h-10 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-400 text-lg">
+            🧠
+          </div>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-[#0f1523] border border-white/5 flex items-center justify-between">
+          <div>
+            <span class="text-[10px] font-mono-tech uppercase tracking-wider text-slate-400">Extracted Actions</span>
+            <div class="text-2xl font-bold text-white mt-0.5">${state.actions?.length || 0}</div>
+            <span class="text-[10px] text-amber-300 font-mono-tech">Commitments tracked</span>
+          </div>
+          <div class="w-10 h-10 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-400 text-lg">
+            ⚡
+          </div>
+        </div>
+
+        <div class="p-4 rounded-2xl bg-[#0f1523] border border-white/5 flex items-center justify-between">
+          <div>
+            <span class="text-[10px] font-mono-tech uppercase tracking-wider text-slate-400">Meetings Analyzed</span>
+            <div class="text-2xl font-bold text-white mt-0.5">${state.meetings?.length || 0}</div>
+            <span class="text-[10px] text-indigo-300 font-mono-tech">Lyzr swarm synthesized</span>
+          </div>
+          <div class="w-10 h-10 rounded-xl bg-indigo-500/10 flex items-center justify-center text-indigo-400 text-lg">
+            📅
+          </div>
+        </div>
+      </section>
+
+      <!-- "Needs your attention" Review Section (Pattern from OmniMind Inspection) -->
+      <section class="attention-review-box p-5 space-y-3">
+        <div class="flex items-center justify-between">
           <div class="flex items-center gap-2">
-            <span class="px-2.5 py-1 rounded-full text-[10px] font-mono-tech bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-              Example stages
-            </span>
-            <a href="#activity" class="text-xs text-cyan-400 hover:text-cyan-300 font-medium px-2 py-1 rounded hover:bg-white/5 transition">
-              Live Feed →
-            </a>
+            <svg class="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
+            <h2 class="text-xs sm:text-sm font-bold text-white tracking-wide">Needs your review</h2>
           </div>
+          <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-amber-500/20 text-amber-300 border border-amber-500/30">
+            AI suggestions need confirmation
+          </span>
         </div>
-
-        <!-- 4-Node Connected Cards Grid -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mt-4 relative z-10">
-
-          <!-- Node 1: Memory Agent -->
-          <div class="p-3.5 rounded-xl bg-slate-900/80 border border-cyan-500/30 hover:border-cyan-400/50 transition relative group flex flex-col justify-between">
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-cyan-500/20 text-cyan-300 font-bold">
-                  01 // MEMORY AGENT
-                </span>
-                <span class="text-[10px] font-mono-tech text-emerald-400 font-semibold">Example</span>
-              </div>
-              <h3 class="text-xs font-bold text-white">Qdrant Vector Retrieval</h3>
-              <p class="text-[11px] text-slate-400 mt-1 font-mono-tech">Embeds ambient speech & queries <code class="text-cyan-300">omi_ambient_memory</code> with cosine similarity.</p>
-            </div>
-            <div class="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-[10px] font-mono-tech text-slate-500">
-              <span>Retrieval stage</span>
-              <span class="text-cyan-400 font-semibold">Vector Store</span>
-            </div>
+        <p class="text-xs text-slate-300">
+          Suggestions extracted from your spoken conversations. Review the assignees, deadlines, and details before dispatching to Jira or Google Calendar.
+        </p>
+        <div class="flex items-center justify-between pt-1 text-xs">
+          <div class="flex items-center gap-2">
+            <span class="text-slate-400 font-mono-tech text-[11px]">High priority commitments:</span>
+            <span class="text-teal-300 font-semibold">${state.actions?.length ? state.actions.length + ' pending' : '0 pending'}</span>
           </div>
-
-          <!-- Node 2: Reasoner Agent -->
-          <div class="p-3.5 rounded-xl bg-slate-900/80 border border-indigo-500/30 hover:border-indigo-400/50 transition relative group flex flex-col justify-between">
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-indigo-500/20 text-indigo-300 font-bold">
-                  02 // REASONER AGENT
-                </span>
-                <span class="text-[10px] font-mono-tech text-indigo-300 font-semibold">Example</span>
-              </div>
-              <h3 class="text-xs font-bold text-white">Contextual Synthesis</h3>
-              <p class="text-[11px] text-slate-400 mt-1 font-mono-tech">Lyzr manager agent cross-references past meetings, speakers, and budget context.</p>
-            </div>
-            <div class="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-[10px] font-mono-tech text-slate-500">
-              <span>Reasoning stage</span>
-              <span class="text-indigo-400 font-semibold">Cognitive Node</span>
-            </div>
-          </div>
-
-          <!-- Node 3: Action Extractor -->
-          <div class="p-3.5 rounded-xl bg-slate-900/80 border border-amber-500/30 hover:border-amber-400/50 transition relative group flex flex-col justify-between">
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-amber-500/20 text-amber-300 font-bold">
-                  03 // ACTION EXTRACTOR
-                </span>
-                <span class="text-[10px] font-mono-tech text-amber-300 font-semibold">Example</span>
-              </div>
-              <h3 class="text-xs font-bold text-white">Commitment Ledger</h3>
-              <p class="text-[11px] text-slate-400 mt-1 font-mono-tech">Parses spoken promises into structured assignees, deadlines, and priority tags.</p>
-            </div>
-            <div class="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-[10px] font-mono-tech text-slate-500">
-              <span>Illustrative priority</span>
-              <span class="text-amber-400 font-semibold">Example actions</span>
-            </div>
-          </div>
-
-          <!-- Node 4: Task Dispatcher -->
-          <div class="p-3.5 rounded-xl bg-slate-900/80 border border-purple-500/30 hover:border-purple-400/50 transition relative group flex flex-col justify-between">
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-purple-500/20 text-purple-300 font-bold">
-                  04 // TASK DISPATCHER
-                </span>
-                <span class="text-[10px] font-mono-tech text-purple-300 font-semibold">Example</span>
-              </div>
-              <h3 class="text-xs font-bold text-white">Execution Gateway</h3>
-              <p class="text-[11px] text-slate-400 mt-1 font-mono-tech">Generates follow-up email, Jira ticket payloads, and calendar schedule events.</p>
-            </div>
-            <div class="mt-3 pt-2.5 border-t border-white/5 flex items-center justify-between text-[10px] font-mono-tech text-slate-500">
-              <span>Review generated drafts</span>
-              <span class="text-purple-400 font-semibold">User controlled</span>
-            </div>
-          </div>
-
+          <a href="#actions" class="text-teal-400 hover:text-teal-300 font-medium flex items-center gap-1">
+            <span>Open Action Center</span>
+            <span aria-hidden="true">→</span>
+          </a>
         </div>
       </section>
 
-      <!-- Three Grid Columns: Recent Memories, Recent Meetings, Actions -->
+      <!-- Multi-Column Activity Grid -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
 
         <!-- Column 1: Recent Memories -->
@@ -294,16 +227,16 @@ export function renderHome(container) {
           <div>
             <div class="flex items-center justify-between border-b border-white/5 pb-3">
               <div class="flex items-center gap-2">
-                <span class="text-cyan-400 font-bold">🧠</span>
+                <span class="text-teal-400 font-bold">🧠</span>
                 <h2 class="font-bold text-sm text-white">Recent Ambient Memories</h2>
               </div>
-              <a href="#memory" class="text-xs text-cyan-400 hover:underline">View All →</a>
+              <a href="#memory" class="text-xs text-teal-400 hover:underline">View All →</a>
             </div>
             <div id="home-memories-list" class="space-y-3 mt-3.5">
               ${renderMemoriesPreview(state.memories)}
             </div>
           </div>
-          <a href="#memory" class="w-full py-2.5 rounded-xl border border-white/10 hover:border-cyan-500/30 text-xs text-slate-200 font-medium transition text-center block mt-3 bg-slate-900/60 hover:bg-slate-800/80">
+          <a href="#memory" class="w-full py-2.5 rounded-xl border border-white/10 hover:border-teal-500/30 text-xs text-slate-200 font-medium transition text-center block mt-3 bg-slate-900/60 hover:bg-slate-800/80">
             Open Memory Explorer
           </a>
         </div>
@@ -347,6 +280,67 @@ export function renderHome(container) {
         </div>
 
       </div>
+
+      <!-- Pipeline Overview: How meeting processing works -->
+      <section class="omi-card p-5 border border-white/10 shadow-xl relative overflow-hidden">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between pb-4 border-b border-white/5 gap-2 relative z-10">
+          <div class="flex items-center gap-2.5">
+            <div class="w-8 h-8 rounded-xl bg-gradient-to-tr from-teal-500 to-indigo-600 flex items-center justify-center text-white shadow-lg shadow-teal-500/20">
+              <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <h2 class="text-sm font-bold text-white tracking-wide">Multi-Agent Processing Pipeline</h2>
+                <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-teal-500/10 text-teal-300 border border-teal-500/20">
+                  Lyzr Swarm + Qdrant
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-400 font-mono-tech mt-0.5">End-to-end trace from ambient voice capture to deterministic dispatch.</p>
+            </div>
+          </div>
+          <a href="#activity" class="text-xs text-teal-400 hover:text-teal-300 font-medium px-2 py-1 rounded hover:bg-white/5 transition">
+            Live Feed →
+          </a>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 mt-4 relative z-10">
+          <div class="p-3.5 rounded-xl bg-slate-900/80 border border-teal-500/30">
+            <div class="flex items-center justify-between mb-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-teal-500/20 text-teal-300 font-bold">01 // MEMORY AGENT</span>
+              <span class="text-[10px] font-mono-tech text-emerald-400 font-semibold">Live</span>
+            </div>
+            <h3 class="text-xs font-bold text-white">Qdrant Vector Retrieval</h3>
+            <p class="text-[11px] text-slate-400 mt-1 font-mono-tech">Embeds speech & queries <code class="text-teal-300">omi_ambient_memory</code> with 384d cosine similarity.</p>
+          </div>
+
+          <div class="p-3.5 rounded-xl bg-slate-900/80 border border-indigo-500/30">
+            <div class="flex items-center justify-between mb-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-indigo-500/20 text-indigo-300 font-bold">02 // REASONER AGENT</span>
+              <span class="text-[10px] font-mono-tech text-indigo-300 font-semibold">Active</span>
+            </div>
+            <h3 class="text-xs font-bold text-white">Contextual Synthesis</h3>
+            <p class="text-[11px] text-slate-400 mt-1 font-mono-tech">Lyzr manager agent cross-references past meetings, speakers, and budget context.</p>
+          </div>
+
+          <div class="p-3.5 rounded-xl bg-slate-900/80 border border-amber-500/30">
+            <div class="flex items-center justify-between mb-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-amber-500/20 text-amber-300 font-bold">03 // ACTION EXTRACTOR</span>
+              <span class="text-[10px] font-mono-tech text-amber-300 font-semibold">Review</span>
+            </div>
+            <h3 class="text-xs font-bold text-white">Commitment Ledger</h3>
+            <p class="text-[11px] text-slate-400 mt-1 font-mono-tech">Parses spoken promises into structured assignees, deadlines, and priority tags.</p>
+          </div>
+
+          <div class="p-3.5 rounded-xl bg-slate-900/80 border border-purple-500/30">
+            <div class="flex items-center justify-between mb-2">
+              <span class="px-2 py-0.5 rounded text-[10px] font-mono-tech bg-purple-500/20 text-purple-300 font-bold">04 // TASK DISPATCHER</span>
+              <span class="text-[10px] font-mono-tech text-purple-300 font-semibold">Dispatch</span>
+            </div>
+            <h3 class="text-xs font-bold text-white">Execution Gateway</h3>
+            <p class="text-[11px] text-slate-400 mt-1 font-mono-tech">Generates follow-up email drafts, Jira ticket payloads, and calendar schedule events.</p>
+          </div>
+        </div>
+      </section>
 
     </div>
   `;

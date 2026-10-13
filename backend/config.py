@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field
 try:
     import importlib
     dotenv_module = importlib.import_module("dotenv")
-    dotenv_module.load_dotenv()
+    dotenv_module.load_dotenv(override=True)
 except Exception:
     pass
 

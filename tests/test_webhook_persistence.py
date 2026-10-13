@@ -34,7 +34,7 @@ def setup_webhook_env(monkeypatch, tmp_path):
     default_webhook_inbox._init_db()
 
 
-def _valid_headers(timestamp: float | None = None, token_suffix: str = "") -> dict[str, str]:
+def _valid_headers(timestamp: float | str | None = None, token_suffix: str = "") -> dict[str, str]:
     ts = str(timestamp if timestamp is not None else time.time())
     token = f"{VALID_WEBHOOK_SECRET}:{token_suffix}" if token_suffix else VALID_WEBHOOK_SECRET
     return {
@@ -145,10 +145,11 @@ class TestWebhookPersistenceAndRetry:
         assert resp.status_code == 401
         assert "outside allowable 5-minute window" in resp.json()["detail"]
 
-    @pytest.mark.parametrize("timestamp", ["not-a-number", str(time.time() + 600)])
-    def test_malformed_and_future_timestamps_rejected(self, timestamp):
+    @pytest.mark.parametrize("timestamp_type", ["not-a-number", "future"])
+    def test_malformed_and_future_timestamps_rejected(self, timestamp_type):
         payload = {"session_id": "bad-ts", "transcript": "test"}
-        resp = client.post("/api/omi-webhook", json=payload, headers=_valid_headers(timestamp=timestamp))
+        ts_val = "not-a-number" if timestamp_type == "not-a-number" else str(time.time() + 86400)
+        resp = client.post("/api/omi-webhook", json=payload, headers=_valid_headers(timestamp=ts_val))
         assert resp.status_code == 401
 
     def test_signed_webhook_requires_timestamp(self):

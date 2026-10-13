@@ -10,7 +10,7 @@ export function updateNavActive(activeRoute) {
     const route = link.getAttribute('data-route');
     const isCurrent = route === activeRoute;
     if (isCurrent) {
-      link.className = "flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-cyan-500/10 text-cyan-300 font-semibold border border-cyan-500/30 text-xs transition shadow-sm shadow-cyan-500/10";
+      link.className = "flex items-center gap-3 px-3.5 py-2.5 rounded-xl bg-teal-500/10 text-teal-300 font-semibold border border-teal-500/20 text-xs transition shadow-sm shadow-teal-500/10";
       link.setAttribute('aria-current', 'page');
     } else {
       link.className = "flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-slate-400 hover:text-white hover:bg-white/5 font-medium text-xs transition";
@@ -23,7 +23,7 @@ export function updateNavActive(activeRoute) {
     const route = link.getAttribute('data-mobile-route');
     const isCurrent = route === activeRoute;
     if (isCurrent) {
-      link.className = "touch-target-44 flex flex-col items-center justify-center flex-1 py-1 text-cyan-300 font-bold text-[10px]";
+      link.className = "touch-target-44 flex flex-col items-center justify-center flex-1 py-1 text-teal-300 font-bold text-[10px]";
       link.setAttribute('aria-current', 'page');
     } else {
       link.className = "touch-target-44 flex flex-col items-center justify-center flex-1 py-1 text-slate-400 hover:text-white text-[10px]";

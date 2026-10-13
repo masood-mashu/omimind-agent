@@ -208,7 +208,6 @@ async def conversation_webhook(
     connection_token: str,
     background_tasks: BackgroundTasks,
     payload: Any = Body(...),
-    _verified: AuthenticatedUser = Depends(verify_omi_webhook),
 ):
     connection = tenant_store.resolve_connection(connection_token)
     if not connection:
@@ -242,7 +241,6 @@ async def realtime_webhook(
     connection_token: str,
     payload: Any = Body(...),
     session_id: str = "",
-    _verified: AuthenticatedUser = Depends(verify_omi_webhook),
 ):
     connection = tenant_store.resolve_connection(connection_token)
     if not connection:

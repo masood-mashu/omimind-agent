@@ -174,12 +174,20 @@ class TestApiEndpoints:
         assert "context" in data
 
     def test_forget_endpoint(self, client):
-        client.post("/omi/realtime?uid=local-user&session_id=rt_test_forget", json={"segments": [{"speaker": "A", "text": "hello"}]}, headers={
+        client.post("/omi/realtime?uid=test-user&session_id=rt_test_forget", json={"segments": [{"speaker": "A", "text": "hello"}]}, headers={
             "X-Omi-Webhook-Secret": "test-secret", "X-Omi-Timestamp": str(time.time()),
         })
         resp = client.post("/api/forget?session_id=rt_test_forget")
         assert resp.status_code == 200
         assert resp.json()["status"] in ["deleted", "not_found"]
+
+    def test_forget_endpoint_rejects_cross_tenant_deletion(self, client):
+        client.post("/omi/realtime?uid=other-tenant-user&session_id=rt_other_tenant", json={"segments": [{"speaker": "B", "text": "private"}]}, headers={
+            "X-Omi-Webhook-Secret": "test-secret", "X-Omi-Timestamp": str(time.time()),
+        })
+        resp = client.post("/api/forget?session_id=rt_other_tenant")
+        assert resp.status_code == 403
+        assert "Cannot delete memory belonging to another user" in resp.json().get("detail", "")
 
     def test_protected_endpoint_rejects_invalid_key(self):
         unauthenticated = TestClient(app)

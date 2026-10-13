@@ -227,6 +227,11 @@ class TenantStore:
             row = conn.execute(self._sql("SELECT * FROM omi_connections WHERE token_hash=? AND status='pairing'"), (hash_secret(token),)).fetchone()
             return dict(row) if row else None
 
+    def resolve_connection_by_omi_user(self, omi_user_id: str) -> dict[str, Any] | None:
+        with self._connection() as conn:
+            row = conn.execute(self._sql("SELECT * FROM omi_connections WHERE omi_user_id=? AND status='active' ORDER BY created_at DESC LIMIT 1"), (omi_user_id,)).fetchone()
+            return dict(row) if row else None
+
     def touch_connection(self, connection_id: str) -> None:
         with self._connection() as conn:
             conn.execute(self._sql("UPDATE omi_connections SET last_event_at=? WHERE id=?"), (time.time(), connection_id))

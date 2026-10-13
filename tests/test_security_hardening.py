@@ -21,6 +21,7 @@ import asyncio
 import json
 import pathlib
 import time
+import uuid
 
 import pytest
 from fastapi import HTTPException
@@ -284,10 +285,11 @@ class TestSecurityHardening:
         hook_client = TestClient(app, headers={"X-Omi-Webhook-Secret": tenant_secret})
         default_client = TestClient(app, headers={"Authorization": f"Bearer {settings.api_secret_key}"})
 
+        sess_id = f"isolated_test_sess_{uuid.uuid4().hex[:8]}"
         hook_resp = hook_client.post(
             "/api/omi-webhook",
             json={
-                "session_id": "isolated_test_sess",
+                "session_id": sess_id,
                 "transcript": "Isolated webhook secret data item 12345",
             },
         )
@@ -301,7 +303,7 @@ class TestSecurityHardening:
         assert default_query.status_code == 200
         for match in default_query.json().get("matches", []):
             assert "Isolated webhook secret data item 12345" not in match.get("text", "")
-            assert match.get("session_id") != "isolated_test_sess"
+            assert match.get("session_id") != sess_id
             assert match.get("uid") != "user_isolated_webhook"
 
         # Check default user recent memories

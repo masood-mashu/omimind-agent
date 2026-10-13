@@ -5,22 +5,22 @@
    ========================================================================== */
 
 :root {
-  /* Surface Tokens (HSL tailored, high contrast dark theme) */
-  --bg-canvas: #07090e;
-  --bg-surface: #0e131f;
+  /* Surface Tokens (Warm velvety obsidian slate, ultra-premium dark theme) */
+  --bg-canvas: #090d14;
+  --bg-surface: #0f1523;
   --bg-surface-elevated: #151d2e;
-  --bg-surface-overlay: #1c263b;
+  --bg-surface-overlay: #1a2438;
 
   /* Border Tokens */
-  --border-subtle: rgba(255, 255, 255, 0.08);
-  --border-prominent: rgba(255, 255, 255, 0.16);
-  --border-focus: #00e5ff;
+  --border-subtle: rgba(255, 255, 255, 0.07);
+  --border-prominent: rgba(255, 255, 255, 0.14);
+  --border-focus: #14b8a6;
 
   /* Typography Colors (WCAG 2.1 AA calibrated) */
   --text-primary: #f8fafc;
   --text-secondary: #94a3b8;
   --text-tertiary: #64748b;
-  --text-accent: #00e5ff;
+  --text-accent: #2dd4bf;
 
   /* Semantic State Tokens */
   --status-live: #10b981;
@@ -29,7 +29,10 @@
   --status-danger: #ef4444;
   --status-agent-active: #6366f1;
 
-  /* Brand Accents */
+  /* Brand Accents - Calibrated Mint, Teal, Obsidian, & Indigo */
+  --accent-teal: #14b8a6;
+  --accent-teal-light: #5eead4;
+  --accent-mint: #ccfbf1;
   --accent-cyan: #06b6d4;
   --accent-cyan-light: #38bdf8;
   --accent-indigo: #6366f1;
@@ -43,13 +46,14 @@
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
+  --radius-xl: 24px;
   --radius-full: 9999px;
 
   /* Elevation Shadows */
   --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px -2px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 12px 28px -6px rgba(0, 0, 0, 0.6);
-  --shadow-focus: 0 0 0 3px rgba(0, 229, 255, 0.2);
+  --shadow-md: 0 4px 16px -2px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 16px 36px -6px rgba(0, 0, 0, 0.6);
+  --shadow-focus: 0 0 0 3px rgba(20, 184, 166, 0.25);
 
   /* Layout Dimensions */
   --header-height: 3.5rem;
@@ -288,3 +292,155 @@ a:focus-visible {
     scroll-behavior: auto !important;
   }
 }
+
+/* ==========================================================================
+   IRIDESCENT 3D ORB & VISUAL INTELLIGENCE ACCENTS
+   ========================================================================== */
+.orb-container {
+  position: relative;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.orb-container-lg {
+  width: 140px;
+  height: 140px;
+}
+
+.orb-sphere {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #a7f3d0 0%, #2dd4bf 28%, #0d9488 55%, #1e1b4b 85%, #0f172a 100%);
+  box-shadow: 
+    0 0 40px -4px rgba(45, 212, 191, 0.45),
+    inset -8px -8px 24px rgba(15, 23, 42, 0.8),
+    inset 4px 4px 16px rgba(255, 255, 255, 0.6);
+  animation: orb-pulse 6s ease-in-out infinite alternate;
+  position: relative;
+}
+
+.orb-glow {
+  position: absolute;
+  inset: -12px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(45, 212, 191, 0.25) 0%, rgba(99, 102, 241, 0.15) 50%, transparent 70%);
+  filter: blur(12px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+@keyframes orb-pulse {
+  0% {
+    transform: scale(0.97) rotate(0deg);
+    filter: hue-rotate(0deg);
+  }
+  50% {
+    transform: scale(1.02) rotate(180deg);
+    filter: hue-rotate(25deg);
+  }
+  100% {
+    transform: scale(0.97) rotate(360deg);
+    filter: hue-rotate(0deg);
+  }
+}
+
+/* ==========================================================================
+   HERO WORKSPACE SHOWCASE & CARD FRAME (From OmniMind Inspection)
+   ========================================================================== */
+.omimind-mockup-frame {
+  background: #0f1523;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: var(--radius-xl);
+  box-shadow: 
+    0 24px 60px -12px rgba(0, 0, 0, 0.75),
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 0 40px -10px rgba(20, 184, 166, 0.12);
+  position: relative;
+  overflow: hidden;
+}
+
+.omimind-mockup-frame::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(45, 212, 191, 0.4), transparent);
+}
+
+/* Attention & Human-in-the-Loop Review Cards */
+.attention-review-box {
+  background: rgba(15, 23, 42, 0.75);
+  border: 1px solid rgba(45, 212, 191, 0.25);
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.attention-review-box:hover {
+  border-color: rgba(45, 212, 191, 0.45);
+  box-shadow: 0 4px 20px -2px rgba(45, 212, 191, 0.1);
+}
+
+.attention-review-box::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, #2dd4bf, #0d9488);
+}
+
+/* Mint Primary CTA Button */
+.btn-mint-cta {
+  background: #ccfbf1;
+  color: #042f2e;
+  font-weight: 700;
+  border-radius: var(--radius-md);
+  padding: 0.65rem 1.25rem;
+  transition: all 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  box-shadow: 0 2px 10px rgba(20, 184, 166, 0.2);
+}
+
+.btn-mint-cta:hover {
+  background: #a7f3d0;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(20, 184, 166, 0.35);
+  color: #022c22;
+}
+
+.btn-mint-cta:active {
+  transform: translateY(0);
+}
+
+/* Subtle Query Pill */
+.query-pill {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+  padding: 0.5rem 0.85rem;
+  font-size: 0.78rem;
+  color: #cbd5e1;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.query-pill:hover {
+  background: rgba(20, 184, 166, 0.08);
+  border-color: rgba(45, 212, 191, 0.3);
+  color: #f1f5f9;
+  transform: translateY(-1px);
+}
+
