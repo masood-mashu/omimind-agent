@@ -567,16 +567,32 @@ async function bootstrap() {
 
   // Global event delegation for Mic triggers and Quick Voice Memo
   document.addEventListener('click', async (e) => {
-    // 0. Auth toggle button
+    // 0. Sign out buttons (Sidebar, Account view)
+    const signoutBtn = e.target.closest('#btn-sidebar-signout, #btn-account-signout');
+    if (signoutBtn) {
+      e.preventDefault();
+      await signOut();
+      showToast('Logged out successfully', 'info');
+      updateAuthButtonState(false);
+      window.location.hash = '';
+      renderLanding();
+      window.location.reload();
+      return;
+    }
+
+    // 0b. Top bar auth toggle button
     const authBtn = e.target.closest('#btn-auth-toggle');
     if (authBtn) {
       e.preventDefault();
-      const auth = await api.checkAuthStatus().catch(() => ({ authenticated: false }));
-      if (auth.authenticated) {
+      const supabaseSession = await getSession().catch(() => ({ session: null }));
+      const isAuth = !!supabaseSession?.session;
+      if (isAuth) {
         await signOut();
         showToast('Logged out successfully', 'info');
         updateAuthButtonState(false);
+        window.location.hash = '';
         renderLanding();
+        window.location.reload();
       } else {
         openLoginModal();
       }

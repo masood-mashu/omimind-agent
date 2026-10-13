@@ -55,11 +55,24 @@ export async function updatePassword(password) {
 }
 
 export async function signOut() {
+  try {
+    await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' });
+  } catch (_) {}
   const client = await getClient();
   if (client) {
-    const { error } = await client.auth.signOut();
-    if (error) throw error;
+    try {
+      await client.auth.signOut();
+    } catch (e) {
+      console.warn('Supabase sign out error:', e);
+    }
   }
+  try {
+    for (const key of Object.keys(localStorage)) {
+      if (key.startsWith('sb-') || key.includes('auth-token')) {
+        localStorage.removeItem(key);
+      }
+    }
+  } catch (_) {}
 }
 
 export async function onAuthStateChange(callback) {
