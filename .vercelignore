@@ -1,4 +1,5 @@
 fastembed_cache/
+.env*
 .pytest_cache/
 tests/
 scratch/
