@@ -351,12 +351,16 @@ omimind-agent/
 **https://omimind-agent.vercel.app/**
 
 ### Quick Judge Path
-1. Open the deployed demo and create an account with **Create an account**. Sign in after Supabase completes any email verification required by the deployment.
-2. Open **Meetings** and choose **Seed Demo Data** to add the sample meetings to your own workspace.
+1. Open the deployed demo and sign in with the confirmed judge account below.
+2. Open **Meetings** and choose **Seed Demo Data** to add the sample meetings to the judge workspace.
 3. Open a seeded meeting and run the processing flow, then use **Ask** to query the indexed meeting context.
 4. Open **Activity** to inspect the run trace and **Memory** to remove a session's memories.
 
-The app requires a Supabase account; no shared judge credentials are published in this repository. The deployment owner must provide a pre-confirmed demo account in the submission form if signup email verification would delay access. Add the final demo-video URL to the submission form before submitting; no video URL was available in the repository when this README was updated.
+**Judge login:** `judge-omimind-2026-10-13@example.com`
+
+**Password:** `u0ieOHEfspZHh086Xa4nlaPvFWMusxR6`
+
+This is a dedicated demo workspace. Do not store personal or sensitive information in it. New self-registered accounts still require email confirmation. Add the final demo-video URL to the submission form before submitting; a video URL is not available in this repository.
 
 For a local lightweight evaluation, set `ENVIRONMENT=development`, `ALLOW_EPHEMERAL_MEMORY=true`, and `EMBEDDING_PROVIDER=deterministic` to use in-memory Qdrant and deterministic embeddings. This path does not need Qdrant Cloud or FastEmbed, but hosted Supabase Auth and Lyzr are still needed to demonstrate their live integrations. For the full multi-user deployment, configure all variables above and apply the Supabase migrations.
 
@@ -378,7 +382,7 @@ OMIMIND utilizes **Lyzr Agent Studio Cloud** with the configured Manager Agent a
 3. **LyzrManager:** Reasons over the retrieved context through the configured Lyzr Studio Manager Agent (delegation configured within Lyzr Studio) to generate structured synthesis.
 4. **Deterministic Validators:** Extract and normalize actions, decisions, risks, and scheduling intent.
 5. **Draft Outputs:** Prepares user-controlled email drafts, Atlassian Jira issue payload drafts, RFC 5545 `.ics` files, and Google Calendar draft URLs.
-The client connects to the configured Lyzr Manager Agent with bounded timeouts and retries. Missing configuration or failed inference can produce deterministic fallback results; run traces identify the source. Verify `/health` and the run trace in the deployed environment before claiming a demo used `lyzr_studio_cloud`.
+The client connects to the configured Lyzr Manager Agent with bounded timeouts and retries. Missing configuration or failed inference can produce deterministic fallback results; run traces identify the source. The current production Lyzr call returned HTTP 402 during verification, so restore the Lyzr account's ability to run agents before recording or claiming a live Lyzr demo. Verify `/health` and the run trace in the deployed environment before claiming a demo used `lyzr_studio_cloud`.
 
 ### Project Description
 OMIMIND is an ambient voice memory and autonomous Chief of Staff built for Track 1 (Meeting & Lecture Intelligence). It accepts Omi wearable webhook transcripts, indexes utterances into owner-scoped 384-dimensional Qdrant memory, and can run reasoning through a configured Lyzr Agent Studio Manager. It includes SSE stream observability, grounded Q&A over past conversations, automated action items with owners and deadlines, user-controlled calendar drafts, and native Model Context Protocol (MCP) support for external developer IDEs. The deployed demo is at https://omimind-agent.vercel.app/.
