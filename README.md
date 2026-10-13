@@ -239,7 +239,7 @@ LYZR_ACTION_EXTRACTOR_AGENT_ID=your-action-extractor-agent-id
 LYZR_FOLLOWUP_PLANNER_AGENT_ID=your-followup-planner-agent-id
 ```
 
-> Production startup fails unless Supabase Auth, Postgres, Qdrant, Lyzr, and Omi signing configuration is present. Webhook event storage never uses `/tmp`.
+> Production startup fails unless Supabase Auth, Postgres, Qdrant, Lyzr, and Omi webhook configuration is present. Webhook event storage never uses `/tmp`.
 
 Apply every file in `supabase/migrations/` to the configured Supabase project before starting production. The service validates the durable webhook and workspace schema at startup and refuses to run against an incomplete database.
 
@@ -277,14 +277,14 @@ docker compose up --build
 
 ## 🧪 Testing & Quality Gates
 
-OMIMIND maintains a test suite for semantic recall, processing pipelines, input bounds, multi-user isolation, and webhook security:
+OMIMIND includes automated checks for semantic recall, processing pipelines, input bounds, multi-user isolation, and webhook security:
 
 ```bash
 # Run Ruff lint & formatting checks
 python -m ruff check .
 
-# Run full pytest suite with coverage gate (>=80%)
-pytest --cov=agents --cov=backend tests/ --cov-report=term-missing
+# Run the full pytest suite with the CI coverage gate (>=80%)
+pytest --cov=agents --cov=backend tests/ --cov-report=term-missing --cov-fail-under=80
 ```
 
 See the [multi-user release test matrix](docs/RELEASE_TEST_MATRIX.md) for the automated and staging-only checks required before release.
@@ -318,7 +318,7 @@ omimind-agent/
 │   ├── css/styles.css       # Design tokens, accessibility focus-visible, animations
 │   ├── js/                  # SPA router, authenticated API client, Web Audio capture & views
 │   └── index.html           # Main application shell with authentication modal & PWA manifest
-├── tests/                   # 16 test modules; 186 collected tests
+├── tests/                   # Automated unit and integration tests
 ├── docs/                    # Architecture, data flow, execution, and sequence diagrams
 │   └── stitch_designs/      # Google Stitch generated UI designs & Obsidian Telemetry HTML
 ├── .github/workflows/ci.yml # Automated GitHub Actions CI (Python 3.10 & 3.11)
@@ -350,14 +350,26 @@ omimind-agent/
 ### Deployed Demo URL
 **https://omimind-agent.vercel.app/**
 
+### Quick Judge Path
+1. Open the deployed demo and create an account with **Create an account**. Sign in after Supabase completes any email verification required by the deployment.
+2. Open **Meetings** and choose **Seed Demo Data** to add the sample meetings to your own workspace.
+3. Open a seeded meeting and run the processing flow, then use **Ask** to query the indexed meeting context.
+4. Open **Activity** to inspect the run trace and **Memory** to remove a session's memories.
+
+The app requires a Supabase account; no shared judge credentials are published in this repository. The deployment owner must provide a pre-confirmed demo account in the submission form if signup email verification would delay access. Add the final demo-video URL to the submission form before submitting; no video URL was available in the repository when this README was updated.
+
+For a local lightweight evaluation, set `ENVIRONMENT=development`, `ALLOW_EPHEMERAL_MEMORY=true`, and `EMBEDDING_PROVIDER=deterministic` to use in-memory Qdrant and deterministic embeddings. This path does not need Qdrant Cloud or FastEmbed, but hosted Supabase Auth and Lyzr are still needed to demonstrate their live integrations. For the full multi-user deployment, configure all variables above and apply the Supabase migrations.
+
 ### Omi Usage
-OMIMIND integrates directly with Omi's ambient voice pipeline through two tokenized webhook endpoints:
+OMIMIND accepts Omi conversation and realtime transcript payloads through paired connection-token webhook endpoints:
 - `POST /omi/conversation/{connection_token}` — triggers after a paired conversation concludes; ingests diarised `transcript_segments[]` with speaker attribution directly into persistent vector storage.
 - `POST /omi/realtime/{connection_token}` — ingests streaming audio transcripts in real time as the paired user speaks.
-Automated tests cover simulated webhook payloads. Real Omi hardware and live microphone behavior require separate staging verification.
+These paired routes authenticate with the high-entropy connection token in the URL path and do not require custom signature headers. A separate legacy `POST /api/omi-webhook` route uses configured webhook credentials and timestamp/signature headers. Automated tests cover simulated webhook payloads; real Omi hardware delivery has not been verified as part of this repository update.
 
 ### Qdrant Usage
-Every spoken utterance is converted into a 384-dimensional dense vector and indexed in the `omi_ambient_memory` collection on configured Qdrant storage. The embedding provider is deployment-configurable; Vercel defaults to the deterministic provider unless `EMBEDDING_PROVIDER=fastembed` is set. Semantic retrieval is scoped to the authenticated workspace and includes speaker metadata and timestamps. Existing collections are protected from destructive deletion on dimension mismatch. The `/api/forget` endpoint lets each user remove their own stored memories.
+Every spoken utterance is converted into a 384-dimensional dense vector and indexed in the `omi_ambient_memory` collection on configured Qdrant storage. The default provider is FastEmbed with `BAAI/bge-small-en-v1.5`; set `EMBEDDING_PROVIDER=deterministic` only for tests or lightweight local evaluation. Vercel downloads the model into its temporary cache on cold start unless a cache is bundled. Searches and deletes include an owner filter for the authenticated workspace. Existing collections are protected from destructive deletion on dimension mismatch. The `/api/forget` endpoint lets each user remove their own stored memories.
+
+When changing an existing deployment from another embedding provider, re-embed its stored points before relying on semantic ranking. `python scripts/reembed_qdrant.py` preflights the configured collection without changing it; add `--apply` to update only vectors while preserving point IDs and payloads. The script keeps prior vectors in memory and attempts rollback if the update or verification fails.
 
 ### Lyzr Usage
 OMIMIND utilizes **Lyzr Agent Studio Cloud** with the configured Manager Agent as the core reasoning engine. The pipeline exposes an observable multi-agent orchestration streamed over Server-Sent Events (SSE):
@@ -366,10 +378,10 @@ OMIMIND utilizes **Lyzr Agent Studio Cloud** with the configured Manager Agent a
 3. **LyzrManager:** Reasons over the retrieved context through the configured Lyzr Studio Manager Agent (delegation configured within Lyzr Studio) to generate structured synthesis.
 4. **Deterministic Validators:** Extract and normalize actions, decisions, risks, and scheduling intent.
 5. **Draft Outputs:** Prepares user-controlled email drafts, Atlassian Jira issue payload drafts, RFC 5545 `.ics` files, and Google Calendar draft URLs.
-The client connects to the configured Lyzr Manager Agent with bounded timeouts and retries, falling back to local deterministic processing when unconfigured with transparent provider attribution (`lyzr_studio_cloud` vs `deterministic_fallback`).
+The client connects to the configured Lyzr Manager Agent with bounded timeouts and retries. Missing configuration or failed inference can produce deterministic fallback results; run traces identify the source. Verify `/health` and the run trace in the deployed environment before claiming a demo used `lyzr_studio_cloud`.
 
 ### Project Description
-OMIMIND is an ambient voice memory and autonomous Chief of Staff built for Track 1 (Meeting & Lecture Intelligence). It captures spoken meetings seamlessly via Omi wearable webhooks, indexes utterances into persistent Qdrant Cloud vector memory using FastEmbed 384-dim embeddings, and runs reasoning through the configured Lyzr Agent Studio Manager. OMIMIND delivers real-time SSE stream observability, grounded Q&A over past conversations, automated action items with owners and deadlines, user-controlled calendar drafts, and native Model Context Protocol (MCP) support for external developer IDEs. Live at https://omimind-agent.vercel.app/.
+OMIMIND is an ambient voice memory and autonomous Chief of Staff built for Track 1 (Meeting & Lecture Intelligence). It accepts Omi wearable webhook transcripts, indexes utterances into owner-scoped 384-dimensional Qdrant memory, and can run reasoning through a configured Lyzr Agent Studio Manager. It includes SSE stream observability, grounded Q&A over past conversations, automated action items with owners and deadlines, user-controlled calendar drafts, and native Model Context Protocol (MCP) support for external developer IDEs. The deployed demo is at https://omimind-agent.vercel.app/.
 
 ---
 

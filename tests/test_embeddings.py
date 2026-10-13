@@ -187,6 +187,11 @@ class TestProviderFactory:
             provider = get_embedding_provider()
             assert isinstance(provider, FastEmbedEmbedding)
 
+    def test_vercel_defaults_to_semantic_fastembed(self):
+        with patch.dict(os.environ, {"EMBEDDING_PROVIDER": "", "VERCEL": "1"}, clear=True):
+            provider = get_embedding_provider()
+            assert isinstance(provider, FastEmbedEmbedding)
+
     def test_get_embedding_provider_sentence_transformers_env(self):
         with patch.dict(os.environ, {"EMBEDDING_PROVIDER": "sentence_transformers"}):
             provider = get_embedding_provider()
