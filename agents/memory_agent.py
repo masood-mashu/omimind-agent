@@ -277,13 +277,10 @@ class QdrantMemoryAgent:
             return False
 
     def _delete_by_session_id(self, session_id: str, uid: str | None) -> bool:
-        conditions = [FieldCondition(key="session_id", match=MatchValue(value=session_id))]
-        if uid is not None:
-            conditions.append(FieldCondition(key="uid", match=MatchValue(value=uid)))
         try:
             scroll_res, _ = self.client.scroll(
                 collection_name=self.collection_name,
-                scroll_filter=Filter(must=conditions),
+                scroll_filter=Filter(must=[FieldCondition(key="session_id", match=MatchValue(value=session_id))]),
                 limit=10000,
                 with_payload=True,
             )
@@ -295,6 +292,9 @@ class QdrantMemoryAgent:
             user_points = [p for p in scroll_res if (p.payload or {}).get("uid") == uid]
             if not user_points:
                 raise PermissionError("Session belongs to another user")
+        conditions = [FieldCondition(key="session_id", match=MatchValue(value=session_id))]
+        if uid is not None:
+            conditions.append(FieldCondition(key="uid", match=MatchValue(value=uid)))
         try:
             self.client.delete(
                 collection_name=self.collection_name,

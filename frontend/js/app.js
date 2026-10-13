@@ -472,6 +472,7 @@ export function openLoginModal() {
       initNav();
       updateAuthButtonState(true);
       await refreshAppData();
+      initVoiceEngine();
       initRouter();
     } catch (err) {
       showToast(err.message || 'Authentication failed', 'error');
@@ -525,12 +526,15 @@ async function bootstrap() {
   initNav();
   updateAuthButtonState(true);
   await refreshAppData();
+  initVoiceEngine();
   if (window.location.hash.includes('type=recovery')) openRecoveryModal();
+}
 
-  // Setup Audio Engine
+function initVoiceEngine() {
+  if (voiceEngine) return voiceEngine;
   voiceEngine = setupVoiceCapture({
     onTranscript: (text) => {
-      const input = document.getElementById('modal-voice-input') || document.getElementById('live-voice-input');
+      const input = document.getElementById('modal-voice-input') || document.getElementById('live-voice-input') || document.getElementById('home-inline-type-input');
       if (input) {
         input.value = text;
         input.scrollTop = input.scrollHeight;
@@ -542,7 +546,7 @@ async function bootstrap() {
 
       // Update mic button texts across DOM
       const homeMicText = document.getElementById('home-mic-text');
-      if (homeMicText) homeMicText.innerText = isListening ? 'Stop Recording' : 'Record Voice';
+      if (homeMicText) homeMicText.innerText = isListening ? 'Stop Recording' : 'Record voice note';
 
       const topMicBadge = document.getElementById('top-mic-badge');
       if (topMicBadge) {
@@ -559,57 +563,65 @@ async function bootstrap() {
   });
 
   // Setup Global Ambient Waveform
-  stopWaveform = initWaveform(
-    'ambient-waveform',
-    () => voiceEngine?.getAudioFrequencyData?.(),
-    () => getState().isRecording
-  );
+  if (!stopWaveform) {
+    stopWaveform = initWaveform(
+      'ambient-waveform',
+      () => voiceEngine?.getAudioFrequencyData?.(),
+      () => getState().isRecording
+    );
+  }
 
-  // Global event delegation for Mic triggers and Quick Voice Memo
-  document.addEventListener('click', async (e) => {
-    // 0. Sign out buttons (Sidebar, Account view)
-    const signoutBtn = e.target.closest('#btn-sidebar-signout, #btn-account-signout');
-    if (signoutBtn) {
-      e.preventDefault();
+  return voiceEngine;
+}
+
+// Global event delegation for Mic triggers and Quick Voice Memo
+document.addEventListener('click', async (e) => {
+  // 0. Sign out buttons (Sidebar, Account view)
+  const signoutBtn = e.target.closest('#btn-sidebar-signout, #btn-account-signout');
+  if (signoutBtn) {
+    e.preventDefault();
+    await signOut();
+    showToast('Logged out successfully', 'info');
+    updateAuthButtonState(false);
+    window.location.hash = '';
+    renderLanding();
+    window.location.reload();
+    return;
+  }
+
+  // 0b. Top bar auth toggle button
+  const authBtn = e.target.closest('#btn-auth-toggle');
+  if (authBtn) {
+    e.preventDefault();
+    const supabaseSession = await getSession().catch(() => ({ session: null }));
+    const isAuth = !!supabaseSession?.session;
+    if (isAuth) {
       await signOut();
       showToast('Logged out successfully', 'info');
       updateAuthButtonState(false);
       window.location.hash = '';
       renderLanding();
       window.location.reload();
-      return;
+    } else {
+      openLoginModal();
     }
+    return;
+  }
 
-    // 0b. Top bar auth toggle button
-    const authBtn = e.target.closest('#btn-auth-toggle');
-    if (authBtn) {
-      e.preventDefault();
-      const supabaseSession = await getSession().catch(() => ({ session: null }));
-      const isAuth = !!supabaseSession?.session;
-      if (isAuth) {
-        await signOut();
-        showToast('Logged out successfully', 'info');
-        updateAuthButtonState(false);
-        window.location.hash = '';
-        renderLanding();
-        window.location.reload();
-      } else {
-        openLoginModal();
-      }
-      return;
+  // 1. Mic Toggle button
+  const micBtn = e.target.closest('#btn-home-mic, #btn-top-mic, #btn-mic');
+  if (micBtn) {
+    e.preventDefault();
+    const engine = initVoiceEngine();
+    if (!getState().isRecording) {
+      // Open live voice recording modal
+      openVoiceCaptureModal();
     }
-
-    // 1. Mic Toggle button
-    const micBtn = e.target.closest('#btn-home-mic, #btn-top-mic, #btn-mic');
-    if (micBtn) {
-      e.preventDefault();
-      if (!getState().isRecording) {
-        // Open live voice recording modal
-        openVoiceCaptureModal();
-      }
-      await voiceEngine.toggle();
-      return;
+    if (engine) {
+      await engine.toggle();
     }
+    return;
+  }
 
     // 1b. Type Note / Direct Ingest modal button
     const typeBtn = e.target.closest('#btn-home-type, #btn-top-type, #btn-ask-type, .btn-open-type-memo');
@@ -659,7 +671,8 @@ async function bootstrap() {
 
   // Start client router
   initRouter();
-}
+
+
 
 function openVoiceCaptureModal() {
   openModal({
@@ -677,9 +690,21 @@ function openVoiceCaptureModal() {
         <textarea 
           id="modal-voice-input" 
           rows="4" 
-          placeholder="Speak or type: 'My live Omi verification phrase is Aurora 4821 and I will finalize the sprint deliverables by Friday...'"
+          placeholder="Speak into microphone or type: 'My live Omi verification phrase is Aurora 4821 and I will finalize the sprint deliverables by Friday...'"
           class="w-full p-3.5 rounded-xl bg-slate-900 border border-white/10 text-xs font-mono-tech text-white focus:outline-none focus:border-cyan-500 custom-scrollbar resize-none"
         ></textarea>
+        <!-- Quick Preset Voice Audio Samples -->
+        <div class="space-y-1">
+          <div class="text-[10px] font-mono-tech text-slate-400">Quick Speech Samples (Click to test or speak directly):</div>
+          <div class="flex flex-wrap gap-1.5">
+            <button type="button" class="btn-voice-quick-fill px-2.5 py-1 rounded-lg bg-teal-950/60 hover:bg-teal-900 border border-teal-500/30 text-[11px] text-teal-300 transition" data-text="Rahul: I will complete the Qdrant Cloud vector search tuning by 4 PM today, and Priya will audit Supabase security before 8 PM.">
+              🎙️ Rahul & Priya Commitments
+            </button>
+            <button type="button" class="btn-voice-quick-fill px-2.5 py-1 rounded-lg bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-500/30 text-[11px] text-indigo-300 transition" data-text="Masood: Our cloud inference budget is capped at $1,200. Let's schedule the final hackathon go-live for Thursday at 10 AM.">
+              🎙️ Budget & Schedule Sync
+            </button>
+          </div>
+        </div>
         <div class="p-3 rounded-lg bg-slate-950 border border-white/5 text-[11px] font-mono-tech text-slate-400">
           Utterances will be embedded into Qdrant collection <code class="text-cyan-300">omi_ambient_memory</code> and synthesized via Lyzr multi-agent swarm.
         </div>
@@ -695,10 +720,21 @@ function openVoiceCaptureModal() {
     `
   });
 
+  document.querySelectorAll('.btn-voice-quick-fill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const textarea = document.getElementById('modal-voice-input');
+      if (textarea && btn.dataset.text) {
+        textarea.value = btn.dataset.text;
+        textarea.scrollTop = textarea.scrollHeight;
+      }
+    });
+  });
+
   const cancelBtn = document.getElementById('modal-voice-cancel');
   if (cancelBtn) {
     cancelBtn.addEventListener('click', () => {
-      if (getState().isRecording) voiceEngine.toggle();
+      const engine = initVoiceEngine();
+      if (getState().isRecording && engine) engine.toggle();
       closeModal();
     });
   }
@@ -713,8 +749,9 @@ function openVoiceCaptureModal() {
         return;
       }
 
-      if (getState().isRecording) {
-        await voiceEngine.toggle();
+      const engine = initVoiceEngine();
+      if (getState().isRecording && engine) {
+        await engine.toggle();
       }
 
       streamBtn.disabled = true;
