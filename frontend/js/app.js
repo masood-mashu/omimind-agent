@@ -556,9 +556,42 @@ function initVoiceEngine() {
           topMicBadge.classList.add('hidden');
         }
       }
+
+      // Update in-modal status elements if open
+      const statusText = document.getElementById('modal-voice-status-text');
+      const statusDot = document.getElementById('modal-voice-status-dot');
+      const toggleBtn = document.getElementById('modal-mic-toggle-btn');
+      if (statusText) {
+        statusText.innerText = isListening ? 'Listening (Microphone live - Speak now)...' : (status || 'Microphone ready');
+        statusText.className = isListening ? 'text-rose-400 font-semibold' : 'text-slate-400';
+      }
+      if (statusDot) {
+        statusDot.className = `w-2.5 h-2.5 rounded-full ${isListening ? 'bg-rose-500 animate-ping' : 'bg-slate-500'}`;
+      }
+      if (toggleBtn) {
+        toggleBtn.innerHTML = `<span>${isListening ? '⏹️ Stop Mic' : '🎙️ Start Mic'}</span>`;
+        toggleBtn.className = `px-3 py-1 rounded-lg ${isListening ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' : 'bg-teal-500/20 text-teal-300 border border-teal-500/40 hover:bg-teal-500/30'} text-xs font-semibold transition flex items-center gap-1.5`;
+      }
     },
     onError: (err) => {
       showToast(err.message || 'Microphone error', 'warning');
+      const warningBanner = document.getElementById('modal-mic-warning-banner');
+      const warningTitle = document.getElementById('modal-mic-warning-title');
+      const warningDesc = document.getElementById('modal-mic-warning-desc');
+      if (warningBanner) {
+        warningBanner.classList.remove('hidden');
+        if (warningTitle) warningTitle.innerText = err.error === 'not-allowed' ? 'Microphone Permission Blocked' : 'Microphone Notice';
+        if (warningDesc) warningDesc.innerText = err.message || 'Please enable microphone access in your browser or select a Quick Speech Sample below.';
+      }
+      const statusText = document.getElementById('modal-voice-status-text');
+      if (statusText) {
+        statusText.innerText = 'Microphone blocked / inactive';
+        statusText.className = 'text-amber-400 font-semibold';
+      }
+      const toggleBtn = document.getElementById('modal-mic-toggle-btn');
+      if (toggleBtn) {
+        toggleBtn.innerHTML = `<span>🎙️ Retry Mic</span>`;
+      }
     }
   });
 
@@ -612,11 +645,8 @@ document.addEventListener('click', async (e) => {
   const micBtn = e.target.closest('#btn-home-mic, #btn-top-mic, #btn-mic');
   if (micBtn) {
     e.preventDefault();
+    openVoiceCaptureModal();
     const engine = initVoiceEngine();
-    if (!getState().isRecording) {
-      // Open live voice recording modal
-      openVoiceCaptureModal();
-    }
     if (engine) {
       await engine.toggle();
     }
@@ -674,39 +704,72 @@ document.addEventListener('click', async (e) => {
 
 
 
-function openVoiceCaptureModal() {
+export function openVoiceCaptureModal() {
+  const isRec = getState().isRecording;
   openModal({
     title: 'Live Omi Voice Capture',
     subtitle: 'Speak into your microphone or enter voice memo transcript to index into Qdrant.',
     contentHtml: `
       <div class="space-y-4">
-        <div class="flex items-center justify-between text-xs font-mono-tech">
-          <span class="text-cyan-300 flex items-center gap-2">
-            <span class="w-2 h-2 rounded-full bg-cyan-400 animate-ping"></span>
-            Listening (Web Speech API active)...
-          </span>
-          <span class="text-slate-400">Speaker: User</span>
+        <!-- Live Mic Bar with Status and Toggle Button -->
+        <div class="flex items-center justify-between p-3 rounded-xl bg-slate-950/80 border border-white/10 text-xs font-mono-tech">
+          <div class="flex items-center gap-2.5">
+            <span id="modal-voice-status-dot" class="w-2.5 h-2.5 rounded-full ${isRec ? 'bg-rose-500 animate-ping' : 'bg-slate-500'}"></span>
+            <span id="modal-voice-status-text" class="${isRec ? 'text-rose-400 font-semibold' : 'text-slate-400'}">
+              ${isRec ? 'Listening (Microphone live - Speak now)...' : 'Microphone ready / Click Start Mic to speak'}
+            </span>
+          </div>
+          <button id="modal-mic-toggle-btn" type="button" class="px-3 py-1.5 rounded-lg ${isRec ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40' : 'bg-teal-500/20 text-teal-300 border border-teal-500/40 hover:bg-teal-500/30'} text-xs font-semibold transition flex items-center gap-1.5">
+            <span>${isRec ? '⏹️ Stop Mic' : '🎙️ Start Mic'}</span>
+          </button>
         </div>
-        <textarea 
-          id="modal-voice-input" 
-          rows="4" 
-          placeholder="Speak into microphone or type: 'My live Omi verification phrase is Aurora 4821 and I will finalize the sprint deliverables by Friday...'"
-          class="w-full p-3.5 rounded-xl bg-slate-900 border border-white/10 text-xs font-mono-tech text-white focus:outline-none focus:border-cyan-500 custom-scrollbar resize-none"
-        ></textarea>
+
+        <!-- Dynamic Mic Error / Permission Warning Banner (Hidden by default, shown if error occurs) -->
+        <div id="modal-mic-warning-banner" class="hidden p-3 rounded-xl bg-amber-500/10 border border-amber-500/25 text-amber-200 text-xs font-sans space-y-1">
+          <div class="flex items-center gap-2 font-semibold">
+            <span>⚠️</span>
+            <span id="modal-mic-warning-title">Microphone notice</span>
+          </div>
+          <p id="modal-mic-warning-desc" class="text-[11px] text-amber-300/90 leading-relaxed">
+            If your browser blocked mic permissions, allow it in your address bar, or click any Quick Speech Sample below to test immediately!
+          </p>
+        </div>
+
+        <div>
+          <div class="flex items-center justify-between mb-1.5 text-[11px] font-mono-tech text-slate-400">
+            <span>Transcript (Speech Recognition / Direct Text):</span>
+            <button id="modal-voice-clear" type="button" class="text-slate-500 hover:text-slate-300 text-[10px] transition">Clear text</button>
+          </div>
+          <textarea 
+            id="modal-voice-input" 
+            rows="4" 
+            placeholder="Speak into microphone or type: 'My live Omi verification phrase is Aurora 4821 and I will finalize the sprint deliverables by Friday...'"
+            class="w-full p-3.5 rounded-xl bg-slate-900 border border-white/10 text-xs font-mono-tech text-white focus:outline-none focus:border-cyan-500 custom-scrollbar resize-none"
+          ></textarea>
+        </div>
+
         <!-- Quick Preset Voice Audio Samples -->
-        <div class="space-y-1">
-          <div class="text-[10px] font-mono-tech text-slate-400">Quick Speech Samples (Click to test or speak directly):</div>
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between text-[10px] font-mono-tech text-slate-400">
+            <span>Quick Speech Samples (Click to test or speak directly):</span>
+            <span id="modal-voice-sample-badge" class="hidden text-teal-400">✓ Sample loaded!</span>
+          </div>
           <div class="flex flex-wrap gap-1.5">
-            <button type="button" class="btn-voice-quick-fill px-2.5 py-1 rounded-lg bg-teal-950/60 hover:bg-teal-900 border border-teal-500/30 text-[11px] text-teal-300 transition" data-text="Rahul: I will complete the Qdrant Cloud vector search tuning by 4 PM today, and Priya will audit Supabase security before 8 PM.">
+            <button type="button" class="btn-voice-quick-fill px-2.5 py-1.5 rounded-lg bg-teal-950/60 hover:bg-teal-900 border border-teal-500/30 text-[11px] text-teal-300 transition" data-text="Rahul: I will complete the Qdrant Cloud vector search tuning by 4 PM today, and Priya will audit Supabase security before 8 PM.">
               🎙️ Rahul & Priya Commitments
             </button>
-            <button type="button" class="btn-voice-quick-fill px-2.5 py-1 rounded-lg bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-500/30 text-[11px] text-indigo-300 transition" data-text="Masood: Our cloud inference budget is capped at $1,200. Let's schedule the final hackathon go-live for Thursday at 10 AM.">
+            <button type="button" class="btn-voice-quick-fill px-2.5 py-1.5 rounded-lg bg-indigo-950/60 hover:bg-indigo-900 border border-indigo-500/30 text-[11px] text-indigo-300 transition" data-text="Masood: Our cloud inference budget is capped at $1,200. Let's schedule the final hackathon go-live for Thursday at 10 AM.">
               🎙️ Budget & Schedule Sync
+            </button>
+            <button type="button" class="btn-voice-quick-fill px-2.5 py-1.5 rounded-lg bg-cyan-950/60 hover:bg-cyan-900 border border-cyan-500/30 text-[11px] text-cyan-300 transition" data-text="Sarah (CFO): I will approve the $45k GPU cluster budget by Wednesday, and let's schedule an executive sync tomorrow at 3 PM.">
+              🎙️ Sarah GPU Approval
             </button>
           </div>
         </div>
-        <div class="p-3 rounded-lg bg-slate-950 border border-white/5 text-[11px] font-mono-tech text-slate-400">
-          Utterances will be embedded into Qdrant collection <code class="text-cyan-300">omi_ambient_memory</code> and synthesized via Lyzr multi-agent swarm.
+
+        <div class="p-3 rounded-lg bg-slate-950 border border-white/5 text-[11px] font-mono-tech text-slate-400 flex items-center justify-between">
+          <span>Ingest Target: <code class="text-cyan-300">omi_ambient_memory</code> (FastEmbed 384d)</span>
+          <span class="text-slate-500">Lyzr multi-agent swarm</span>
         </div>
       </div>
     `,
@@ -720,12 +783,37 @@ function openVoiceCaptureModal() {
     `
   });
 
+  // Attach Mic Toggle inside modal
+  const micToggleBtn = document.getElementById('modal-mic-toggle-btn');
+  if (micToggleBtn) {
+    micToggleBtn.addEventListener('click', async () => {
+      const engine = initVoiceEngine();
+      if (engine) {
+        await engine.toggle();
+      }
+    });
+  }
+
+  // Clear button
+  document.getElementById('modal-voice-clear')?.addEventListener('click', () => {
+    const input = document.getElementById('modal-voice-input');
+    if (input) {
+      input.value = '';
+      input.focus();
+    }
+  });
+
   document.querySelectorAll('.btn-voice-quick-fill').forEach(btn => {
     btn.addEventListener('click', () => {
       const textarea = document.getElementById('modal-voice-input');
       if (textarea && btn.dataset.text) {
         textarea.value = btn.dataset.text;
         textarea.scrollTop = textarea.scrollHeight;
+        const badge = document.getElementById('modal-voice-sample-badge');
+        if (badge) {
+          badge.classList.remove('hidden');
+          setTimeout(() => badge.classList.add('hidden'), 2000);
+        }
       }
     });
   });
@@ -938,6 +1026,11 @@ export function openTypeMemoModal() {
     });
   }
 }
+
+// Expose modal and audio triggers globally for all views
+window.openVoiceCaptureModal = openVoiceCaptureModal;
+window.openTypeMemoModal = openTypeMemoModal;
+window.initVoiceEngine = initVoiceEngine;
 
 // Start application when DOM is ready
 document.addEventListener('DOMContentLoaded', bootstrap);

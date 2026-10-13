@@ -364,6 +364,26 @@ export function renderHome(container) {
     });
   });
 
+  const homeMicBtn = container.querySelector('#btn-home-mic');
+  if (homeMicBtn) {
+    homeMicBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (typeof window.openVoiceCaptureModal === 'function') {
+        window.openVoiceCaptureModal();
+      }
+    });
+  }
+
+  const homeTypeBtn = container.querySelector('#btn-home-type');
+  if (homeTypeBtn) {
+    homeTypeBtn.addEventListener('click', (e) => {
+      e.preventDefault();
+      if (typeof window.openTypeMemoModal === 'function') {
+        window.openTypeMemoModal();
+      }
+    });
+  }
+
   const syncBtn = container.querySelector('#btn-quick-sync');
   if (syncBtn) {
     syncBtn.addEventListener('click', async () => {

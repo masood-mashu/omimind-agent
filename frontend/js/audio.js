@@ -169,7 +169,15 @@ export function setupVoiceCapture(callbacks = {}) {
           notifyStatus('Requesting Mic Access...');
           await startAudioStream();
           if (recognition) {
-            recognition.start();
+            try {
+              recognition.start();
+            } catch (recErr) {
+              if (recErr.name === 'InvalidStateError') {
+                console.log('SpeechRecognition already started or active');
+              } else {
+                throw recErr;
+              }
+            }
           }
         } catch (err) {
           console.error('Failed to start recording:', err);
