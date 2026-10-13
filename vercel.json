@@ -2,22 +2,14 @@
   "version": 2,
   "functions": {
     "api/index.py": {
-      "maxDuration": 300
+      "maxDuration": 300,
+      "includeFiles": [
+        "agents/**",
+        "backend/**",
+        "frontend/**"
+      ]
     }
   },
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python",
-      "config": {
-        "includeFiles": [
-          "agents/**",
-          "backend/**",
-          "frontend/**"
-        ]
-      }
-    }
-  ],
   "routes": [
     {
       "src": "/(.*)",
