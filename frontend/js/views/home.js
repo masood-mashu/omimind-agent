@@ -83,7 +83,7 @@ export function renderHome(container) {
                   <span>Category:</span>
                   <span class="px-2 py-0.5 rounded bg-white/5 text-teal-300 border border-white/5">Engineering</span>
                   <span class="text-slate-600">•</span>
-                  <span class="text-slate-500">Vectorized via FastEmbed into Qdrant</span>
+                  <span class="text-slate-500">Vectorized with the configured provider into Qdrant</span>
                 </div>
                 
                 <button 
@@ -99,7 +99,7 @@ export function renderHome(container) {
           </form>
 
           <p class="text-[10px] text-slate-500 font-mono-tech">
-            FastEmbed: 384d dense vectors • Qdrant Cloud collection: <code class="text-teal-400">omi_ambient_memory</code> • Lyzr Studio swarm reasoning.
+            384d dense vectors • Qdrant collection: <code class="text-teal-400">omi_ambient_memory</code> • Lyzr Studio swarm reasoning.
           </p>
         </div>
 

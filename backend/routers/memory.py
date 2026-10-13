@@ -49,6 +49,8 @@ def get_meeting_detail(meeting_id: str, user: AuthenticatedUser = Depends(get_cu
         raise HTTPException(status_code=404, detail="Meeting not found")
     m = DEMO_MEETINGS[meeting_id]
     cached = get_processed_for_user(meeting_id, user.uid)
+    if cached is None:
+        cached = tenant_store.latest_completed_run(user.uid, meeting_id)
     return {
         "id": m["id"],
         "title": m["title"],

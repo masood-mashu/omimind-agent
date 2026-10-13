@@ -31,11 +31,11 @@ def test_qdrant_vector_memory():
     memory = QdrantMemoryAgent(storage_path=":memory:")
 
     # Index 2 distinct statements
-    memory.index_utterance("sess1", "Sarah (CFO)", "We will approve the $450k budget by Friday.", 10.0, "00:10", "finance", "high")
-    memory.index_utterance("sess1", "Marcus", "The database latency benchmark passed under 50ms.", 20.0, "00:20", "tech", "normal")
+    memory.index_utterance("sess1", "Sarah (CFO)", "We will approve the $450k budget by Friday.", 10.0, "00:10", "finance", "high", uid="default_user")
+    memory.index_utterance("sess1", "Marcus", "The database latency benchmark passed under 50ms.", 20.0, "00:20", "tech", "normal", uid="default_user")
 
     # Semantic search
-    results = memory.search_memory("How much money or budget was approved?", limit=2)
+    results = memory.search_memory("How much money or budget was approved?", limit=2, uid="default_user")
     assert len(results) > 0
     top_hit = results[0]
     assert top_hit["speaker"] == "Sarah (CFO)"
@@ -105,7 +105,7 @@ def test_full_orchestration():
     assert len(dossier["jira_tickets"]) > 0
 
     # Test natural language semantic query
-    res = orchestrator.query_semantic_memory("Why was there an outage and who was assigned?")
+    res = orchestrator.query_semantic_memory("Why was there an outage and who was assigned?", uid="default_user")
     assert res["relevance_top"] > 0
     assert len(res["matches"]) > 0
 

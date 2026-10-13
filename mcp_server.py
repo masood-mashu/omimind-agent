@@ -4,6 +4,7 @@ Allows external agents (Claude, ChatGPT, Cursor, Antigravity) to query ambient m
 Protocol Specification: JSON-RPC 2.0 (MCP 2024-11-05) over stdio.
 """
 import json
+import os
 import sys
 from typing import Any
 
@@ -26,6 +27,9 @@ def _parse_simple_transcript(raw: str) -> list[dict[str, str]]:
 
 class OmiMindMCPServer:
     def __init__(self, storage_path: str = "./qdrant_storage"):
+        self.uid = os.environ.get("OMIMIND_MCP_UID", "").strip()
+        if not self.uid or self.uid.lower() in {"all", "*"}:
+            raise RuntimeError("Set OMIMIND_MCP_UID to one workspace identity before starting the MCP server.")
         self.orchestrator = OmiMindOrchestrator(storage_path=storage_path)
         self.extractor = LyzrActionExtractor()
         self.scheduler = LyzrCalendarScheduler()
@@ -94,13 +98,16 @@ class OmiMindMCPServer:
             }
         ]
 
-    def handle_request(self, req: dict[str, Any]) -> dict[str, Any]:
+    def handle_request(self, req: dict[str, Any]) -> dict[str, Any] | None:
         """
         Processes standard JSON-RPC MCP requests.
         """
         req_id = req.get("id")
         method = req.get("method")
         params = req.get("params", {})
+
+        if method == "notifications/initialized":
+            return None
 
         if method == "initialize":
             return {
@@ -167,6 +174,7 @@ class OmiMindMCPServer:
             return self.orchestrator.query_semantic_memory(
                 query=args.get("query", ""),
                 limit=int(args.get("limit", 4)),
+                uid=self.uid,
             )
 
         if name == "get_meeting_dossier":
@@ -178,6 +186,7 @@ class OmiMindMCPServer:
                 session_id=meeting["id"],
                 title=meeting["title"],
                 transcript_lines=meeting["lines"],
+                uid=self.uid,
             )
 
         if name == "extract_action_items":
@@ -201,8 +210,9 @@ class OmiMindMCPServer:
             try:
                 req = json.loads(line)
                 res = self.handle_request(req)
-                sys.stdout.write(json.dumps(res) + "\n")
-                sys.stdout.flush()
+                if res is not None:
+                    sys.stdout.write(json.dumps(res) + "\n")
+                    sys.stdout.flush()
             except Exception as e:
                 err_res = {
                     "jsonrpc": "2.0",

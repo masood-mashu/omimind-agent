@@ -29,7 +29,10 @@ def health():
             "configured": orchestrator.lyzr.configured,
             "agent_id_configured": bool(orchestrator.lyzr.agent_id),
             "provider": "lyzr_studio_cloud" if orchestrator.lyzr.configured else "unconfigured",
-            "agent_roles": orchestrator.swarm.registry.as_dict(),
+            "agent_roles": {
+                role: {"configured": item["configured"]}
+                for role, item in orchestrator.swarm.registry.as_dict().items()
+            },
         },
         "embedding_health": emb_health,
         "qdrant_stats": stats,

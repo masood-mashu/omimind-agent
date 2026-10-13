@@ -193,7 +193,7 @@ export function renderAsk(container, initialQuery = '') {
         question: cleanQ,
         answer: res.answer || 'No direct conversational records found in Qdrant.',
         source: res.source || 'lyzr_studio_cloud',
-        agent_id: res.agent_id || '6ac2646b367124ed07f49bdd',
+        agent_id: res.agent_id || null,
         matches: res.matches || [],
         relevance_top: res.relevance_top || 0.0,
         timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),

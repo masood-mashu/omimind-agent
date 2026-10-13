@@ -192,6 +192,8 @@ class QdrantMemoryAgent:
         """
         Semantic vector search over past conversations with hybrid lexical & stem boost.
         """
+        if not uid or uid.strip().lower() in {"all", "*"}:
+            raise ValueError("A specific workspace uid is required for memory search.")
         query_vector = generate_semantic_embedding(query)
 
         query_filter = None
@@ -202,8 +204,7 @@ class QdrantMemoryAgent:
             conditions.append(FieldCondition(key="topic", match=MatchValue(value=topic)))
 
         should_conditions = None
-        if uid and uid not in ("all", "*"):
-            conditions.append(FieldCondition(key="uid", match=MatchValue(value=uid)))
+        conditions.append(FieldCondition(key="uid", match=MatchValue(value=uid)))
 
         if conditions or should_conditions:
             query_filter = Filter(must=conditions if conditions else None, should=should_conditions)
@@ -276,13 +277,14 @@ class QdrantMemoryAgent:
             return False
 
     def _delete_by_session_id(self, session_id: str, uid: str | None) -> bool:
+        conditions = [FieldCondition(key="session_id", match=MatchValue(value=session_id))]
+        if uid is not None:
+            conditions.append(FieldCondition(key="uid", match=MatchValue(value=uid)))
         try:
             scroll_res, _ = self.client.scroll(
                 collection_name=self.collection_name,
-                scroll_filter=Filter(
-                    must=[FieldCondition(key="session_id", match=MatchValue(value=session_id))]
-                ),
-                limit=10,
+                scroll_filter=Filter(must=conditions),
+                limit=10000,
                 with_payload=True,
             )
         except Exception:
@@ -293,9 +295,6 @@ class QdrantMemoryAgent:
             user_points = [p for p in scroll_res if (p.payload or {}).get("uid") == uid]
             if not user_points:
                 raise PermissionError("Session belongs to another user")
-        conditions = [FieldCondition(key="session_id", match=MatchValue(value=session_id))]
-        if uid is not None:
-            conditions.append(FieldCondition(key="uid", match=MatchValue(value=uid)))
         try:
             self.client.delete(
                 collection_name=self.collection_name,
@@ -316,6 +315,8 @@ class QdrantMemoryAgent:
         Enforces tenant isolation by verifying ownership against the authenticated UID.
         Raises PermissionError if target exists but belongs to another user.
         """
+        if not uid or uid.strip().lower() in {"all", "*"}:
+            raise ValueError("A specific workspace uid is required for memory deletion.")
         if point_id is not None:
             return self._delete_by_point_id(point_id, uid)
         if session_id:

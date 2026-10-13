@@ -22,7 +22,7 @@ In fast-paced engineering teams, boardrooms, and academic lectures, critical dec
 **OMIMIND** bridges the gap between spoken conversation and autonomous execution. By uniting **Omi Wearable voice capture**, **Qdrant Cloud vector memory**, and **Lyzr Agent Studio swarms**, OMIMIND functions as an ambient, privacy-first **Chief of Staff**:
 
 1. **Ambient Ingestion & Direct Input:** Captures ambient speech continuously from Omi device webhooks or in-browser microphone, with dedicated direct typing inputs and 1-click test templates for zero-friction evaluation.
-2. **Instant Vectorization:** Indexes each utterance as a 384-dimensional dense vector into Qdrant Cloud using FastEmbed, dynamically linking memories across both web users and personal Omi wearable UIDs.
+2. **Instant Vectorization:** Indexes each utterance as a 384-dimensional dense vector into configured Qdrant storage using the embedding provider selected for the deployment.
 3. **Multi-Agent Reasoning:** Coordinates Lyzr Studio Cloud swarms (`gpt-4o` / `gpt-4o-mini`) to synthesize executive briefings and ground queries against past conversations.
 4. **Deterministic Validation & Action Dispatch:** Extracts concrete commitments, priority tags, assignees, and deadlines, formatting them into user-controlled follow-up emails, Jira ticket backlogs, and 1-click Google Calendar invites.
 5. **Observable Real-Time Streaming:** Streams agent execution stages live over Server-Sent Events (SSE) to an accessible, responsive dashboard.
@@ -43,8 +43,8 @@ flowchart TD
 
     subgraph MemoryLayer ["2. Ambient Vector Memory Layer"]
         Validated --> MemoryAgent["🧠 MemoryAgent<br/>(agents/memory_agent.py)"]
-        MemoryAgent -->|Dense 384d Embeddings| FastEmbed["⚡ FastEmbed Engine<br/>(BAAI/bge-small-en-v1.5)"]
-        FastEmbed --> Qdrant[("🗄️ Qdrant Cloud<br/>(omi_ambient_memory)")]
+        MemoryAgent -->|Dense 384d Embeddings| Embeddings["⚡ Configured Embedding Provider<br/>(FastEmbed or deterministic)"]
+        Embeddings --> Qdrant[("🗄️ Qdrant<br/>(omi_ambient_memory)")]
     end
 
     subgraph ReasoningLayer ["3. Multi-Agent Reasoning Layer"]
@@ -88,7 +88,7 @@ OMIMIND is a public multi-user application. Each person creates a Supabase Auth 
 - **Row-level isolation:** Supabase RLS protects meetings, runs, agent events, action items, Omi connections, and webhook records. Qdrant searches and deletes always include the authenticated owner filter.
 - **Header-Only Authentication:** Sensitive endpoints require `Authorization: Bearer <token>` or `X-API-Key: <token>`. Credentials in query parameters (`?api_key=`, `?token=`) are rejected with `HTTP 401`.
 - **Constant-Time Verification:** All secret comparisons utilize `hmac.compare_digest` to prevent timing attacks.
-- **Omi Webhook Protection:** Requires configured webhook credentials and a fresh timestamp within five minutes. Signed requests cover the timestamp and raw request body.
+- **Omi Webhook Protection:** Dedicated tokenized connection routes authenticate with a high-entropy per-connection token in the path. The legacy signed webhook routes require configured credentials and a fresh timestamp within five minutes, with signatures covering the timestamp and raw request body.
 - **Shared Durable Idempotency:** Supabase Postgres serializes event claims across app instances, detects changed payloads for reused event IDs, and retains completed IDs for 72 hours.
 - **Strict Input Validation & Abuse Resistance:** Request payloads are capped at 1MB (`HTTP 413`), transcripts at 50,000 characters, queries at 1,000 characters, and segment batches at 500 items, rejecting malformed types or invalid timestamps (`HTTP 422`).
 - **Ownership Enforcement on Purge:** Both `/api/forget` and `DELETE /api/memory` verify point and session ownership, returning `HTTP 403 Forbidden` if a caller attempts to delete another user's data.
@@ -134,7 +134,7 @@ OMIMIND is a public multi-user application. Each person creates a Supabase Auth 
 | `DELETE` | `/api/account` | Delete the account's Postgres, Qdrant, run, and Omi data |
 
 ### Dedicated Omi Webhook Endpoints
-*Require configured webhook credentials and `X-Omi-Timestamp` (or `X-Timestamp`) within five minutes. Signed requests use `X-Omi-Signature` over the timestamp and raw body.*
+*Connection-token routes authenticate with the per-connection token in the URL. The legacy signed routes require `X-Omi-Timestamp` (or `X-Timestamp`) within five minutes and `X-Omi-Signature` over the timestamp and raw body.*
 
 | Method | Endpoint | Description |
 | :--- | :--- | :--- |
@@ -145,7 +145,7 @@ OMIMIND is a public multi-user application. Each person creates a Supabase Auth 
 
 ## 🤖 Model Context Protocol (MCP) Server
 
-OMIMIND includes a native **Model Context Protocol (MCP)** server ([mcp_server.py](mcp_server.py)) operating over standard input/output (stdio JSON-RPC 2.0). External AI developer assistants (Claude Desktop, Cursor, Antigravity) can connect directly to your ambient memory store:
+OMIMIND includes a native **Model Context Protocol (MCP)** server ([mcp_server.py](mcp_server.py)) operating over standard input/output (stdio JSON-RPC 2.0). It requires `OMIMIND_MCP_UID` to be set to one Supabase Auth user ID and filters memory to that workspace. Set that variable before starting the server:
 
 ```bash
 python mcp_server.py
@@ -160,9 +160,9 @@ Add this configuration to your `claude_desktop_config.json` or Cursor MCP settin
   "mcpServers": {
     "omimind": {
       "command": "python",
-      "args": ["d:/hackathon/omimind-agent/mcp_server.py"],
+      "args": ["<path-to-repository>/mcp_server.py"],
       "env": {
-        "API_SECRET_KEY": "your-secret-key",
+        "OMIMIND_MCP_UID": "your-supabase-auth-user-id",
         "QDRANT_URL": "https://your-cluster.qdrant.io:6333",
         "QDRANT_API_KEY": "your-qdrant-api-key"
       }
@@ -175,7 +175,7 @@ Add this configuration to your `claude_desktop_config.json` or Cursor MCP settin
 - `search_ambient_memory`: Hybrid semantic vector search across ambient meeting memories.
 - `get_meeting_dossier`: Retrieves executive summaries, decisions, risks, and calendar links for a session.
 - `extract_action_items`: Runs multi-agent commitment extraction on raw transcript text.
-- `schedule_calendar_event`: Detects temporal dates and outputs Google Calendar invite URLs.
+- `schedule_followup_events`: Detects proposed follow-up meetings and outputs Google Calendar and iCal links.
 
 ---
 
@@ -318,7 +318,7 @@ omimind-agent/
 │   ├── css/styles.css       # Design tokens, accessibility focus-visible, animations
 │   ├── js/                  # SPA router, authenticated API client, Web Audio capture & views
 │   └── index.html           # Main application shell with authentication modal & PWA manifest
-├── tests/                   # 14 test suites covering 164 test scenarios
+├── tests/                   # 16 test modules; 186 collected tests
 ├── docs/                    # Architecture, data flow, execution, and sequence diagrams
 │   └── stitch_designs/      # Google Stitch generated UI designs & Obsidian Telemetry HTML
 ├── .github/workflows/ci.yml # Automated GitHub Actions CI (Python 3.10 & 3.11)
@@ -351,13 +351,13 @@ omimind-agent/
 **https://omimind-agent.vercel.app/**
 
 ### Omi Usage
-OMIMIND integrates directly with Omi's ambient voice pipeline through three dedicated webhook endpoints:
+OMIMIND integrates directly with Omi's ambient voice pipeline through two tokenized webhook endpoints:
 - `POST /omi/conversation/{connection_token}` — triggers after a paired conversation concludes; ingests diarised `transcript_segments[]` with speaker attribution directly into persistent vector storage.
 - `POST /omi/realtime/{connection_token}` — ingests streaming audio transcripts in real time as the paired user speaks.
-Tested and verified with automated test suites, simulated audio feeds, and live microphone capture.
+Automated tests cover simulated webhook payloads. Real Omi hardware and live microphone behavior require separate staging verification.
 
 ### Qdrant Usage
-Every spoken utterance is converted into a 384-dimensional `BAAI/bge-small-en-v1.5` dense vector and indexed in the `omi_ambient_memory` collection on configured Qdrant storage. Semantic retrieval is scoped to the single configured demo identity and includes speaker metadata and timestamps. Existing collections are protected from destructive deletion on dimension mismatch. The `/api/forget` endpoint lets the demo operator remove stored memories.
+Every spoken utterance is converted into a 384-dimensional dense vector and indexed in the `omi_ambient_memory` collection on configured Qdrant storage. The embedding provider is deployment-configurable; Vercel defaults to the deterministic provider unless `EMBEDDING_PROVIDER=fastembed` is set. Semantic retrieval is scoped to the authenticated workspace and includes speaker metadata and timestamps. Existing collections are protected from destructive deletion on dimension mismatch. The `/api/forget` endpoint lets each user remove their own stored memories.
 
 ### Lyzr Usage
 OMIMIND utilizes **Lyzr Agent Studio Cloud** with the configured Manager Agent as the core reasoning engine. The pipeline exposes an observable multi-agent orchestration streamed over Server-Sent Events (SSE):

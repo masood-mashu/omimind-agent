@@ -15,7 +15,7 @@ processed_cache: dict[str, Any] = {}
 processed_cache_owners: dict[str, str] = {}
 
 # Active Wearable UID registry for zero-friction hackathon evaluation
-ACTIVE_WEARABLE_UIDS: set[str] = {"uoCU1OLVdUaEU9IxVSICTbakkiD3"}
+ACTIVE_WEARABLE_UIDS: set[str] = set()
 
 
 def register_wearable_uid(uid: str) -> None:

@@ -39,6 +39,11 @@ def _claim_event(**kwargs):
         raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
+def _require_scoped_webhook_user(uid: str) -> None:
+    if not uid and not is_testing():
+        raise HTTPException(status_code=410, detail="Legacy global Omi webhook is retired. Use a paired connection token.")
+
+
 def _process_omi_webhook_synthesis(session_id: str, lines: list[dict[str, Any]], uid: str = "") -> None:
     try:
         dossier = orchestrator.process_session(
@@ -65,6 +70,7 @@ def omi_webhook(
     Accepts Omi's standard segment payload or a flat transcript string.
     Guarantees persistence into SQLite inbox and vector storage before acknowledging with HTTP 202.
     """
+    _require_scoped_webhook_user(user.uid)
     event_id = req.event_id or req.session_id
     session_id = req.session_id or req.event_id or f"omi_{uuid.uuid4().hex[:8]}"
     uid = user.uid
@@ -229,8 +235,7 @@ def omi_conversation_webhook(
     Ingests transcript segments and guarantees single-pass indexing under authenticated UID.
     Includes idempotency protection and collision-safe session identifiers.
     """
-    if not user.uid and not is_testing():
-        raise HTTPException(status_code=410, detail="Legacy global Omi webhook is retired. Use a paired connection token.")
+    _require_scoped_webhook_user(user.uid)
 
     # Dynamically register incoming wearable identity
     register_wearable_uid(user.uid)
@@ -321,8 +326,7 @@ def omi_realtime_webhook(
     Official Guide Endpoint: Real-time transcript stream chunks from Omi device.
     Strictly validates segment timestamps and isolates points to authenticated user identity.
     """
-    if not user.uid and not is_testing():
-        raise HTTPException(status_code=410, detail="Legacy global Omi webhook is retired. Use a paired connection token.")
+    _require_scoped_webhook_user(user.uid)
     segments = _extract_realtime_segments(payload)
     if len(segments) > MAX_SEGMENTS_COUNT:
         raise HTTPException(status_code=422, detail=f"Segments count exceeds limit of {MAX_SEGMENTS_COUNT}")

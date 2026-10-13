@@ -8,9 +8,7 @@ function escapeHtml(value) {
 }
 
 export async function renderOmi(container) {
-  const host = window.location.hostname;
-  const port = window.location.port ? `:${window.location.port}` : '';
-  const currentOrigin = `${window.location.protocol}//${host}${port}`;
+  const currentOrigin = window.location.origin;
 
   container.innerHTML = `
     <div class="mx-auto max-w-4xl space-y-6">
@@ -22,14 +20,12 @@ export async function renderOmi(container) {
         </p>
       </div>
 
-      <!-- Hotspot / Network Notice -->
       <div class="rounded-2xl border border-teal-500/20 bg-teal-500/5 p-4 flex items-start gap-3 text-xs text-slate-300">
         <span class="text-teal-400 text-base">📶</span>
         <div class="space-y-1">
-          <p class="font-semibold text-teal-200">Mobile Hotspot Direct Connection</p>
+          <p class="font-semibold text-teal-200">Webhook address</p>
           <p class="text-slate-400 leading-relaxed">
-            Since your phone is acting as a hotspot for this laptop, your laptop is directly reachable by your phone at:
-            <code class="px-1.5 py-0.5 rounded bg-slate-900 border border-white/10 text-teal-300 font-mono-tech">http://10.156.188.136:8000</code>
+            Omi will send conversation updates to your current workspace origin: <code class="px-1.5 py-0.5 rounded bg-slate-900 border border-white/10 text-teal-300 font-mono-tech">${escapeHtml(currentOrigin)}</code>
           </p>
         </div>
       </div>
@@ -138,7 +134,7 @@ export async function renderOmi(container) {
         <p class="font-semibold text-teal-300">Pairing code: <span class="font-mono text-2xl text-white ml-2">${escapeHtml(pair.pairing_code)}</span></p>
         <p class="mt-1 text-xs text-slate-400">Expires ${new Date(pair.expires_at * 1000).toLocaleTimeString()}. Enter your Omi User ID below:</p>
         <div class="mt-3 grid gap-2 sm:grid-cols-[1fr_1fr_auto]">
-          <input id="omi-user-id" class="rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white" placeholder="Omi User ID" value="uoCU1OLVdUaEU9lxVSICTbakkiD3"/>
+          <input id="omi-user-id" class="rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white" placeholder="Omi User ID" autocomplete="off"/>
           <input id="omi-device-label" class="rounded-lg border border-white/10 bg-slate-950 px-3 py-2 text-xs text-white" placeholder="Device label (optional)" value="My Omi Device"/>
           <button id="omi-complete-pair" class="rounded-lg bg-teal-500 hover:bg-teal-400 px-4 py-2 text-xs font-bold text-slate-950 transition">Complete</button>
         </div>
@@ -177,7 +173,7 @@ export async function renderOmi(container) {
         const res = await authorizedFetch(`/api/omi/connections/${rotate.dataset.rotate}/rotate`, { method: 'POST' });
         const rotatedData = await res.json();
         if (urlBox && fullUrlEl) {
-          const webhookUrl = `http://10.156.188.136:8000${rotatedData.webhook_paths.conversation}`;
+          const webhookUrl = new URL(rotatedData.webhook_paths.conversation, currentOrigin).toString();
           fullUrlEl.innerText = webhookUrl;
           urlBox.classList.remove('hidden');
           urlBox.scrollIntoView({ behavior: 'smooth' });

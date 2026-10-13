@@ -207,7 +207,7 @@ class TenantStore:
         token = secrets.token_urlsafe(32)
         now = time.time()
         with self._connection() as conn:
-            result = conn.execute(self._sql("UPDATE omi_connections SET token_hash=?,rotated_at=?,status='active' WHERE id=? AND owner_id=?"), (hash_secret(token), now, connection_id, owner_id))
+            result = conn.execute(self._sql("UPDATE omi_connections SET token_hash=?,rotated_at=? WHERE id=? AND owner_id=?"), (hash_secret(token), now, connection_id, owner_id))
             if result.rowcount != 1:
                 raise KeyError("Omi connection not found")
         return {"id": connection_id, "connection_token": token, "rotated_at": now}
@@ -281,6 +281,23 @@ class TenantStore:
         with self._connection() as conn:
             rows = conn.execute(self._sql("SELECT payload_json FROM agent_events WHERE owner_id=? AND run_id=? ORDER BY created_at ASC"), (owner_id, run_id)).fetchall()
             return [row["payload_json"] if isinstance(row["payload_json"], dict) else json.loads(row["payload_json"]) for row in rows]
+
+    def latest_completed_run(self, owner_id: str, session_id: str) -> dict[str, Any] | None:
+        """Return the latest completed dossier for a user's session."""
+        with self._connection() as conn:
+            row = conn.execute(
+                self._sql("SELECT dossier_json FROM meeting_runs WHERE owner_id=? AND session_id=? AND status='completed' ORDER BY completed_at DESC LIMIT 1"),
+                (owner_id, session_id),
+            ).fetchone()
+        if not row:
+            return None
+        dossier = row["dossier_json"]
+        if isinstance(dossier, str):
+            try:
+                dossier = json.loads(dossier)
+            except json.JSONDecodeError:
+                return None
+        return dossier if isinstance(dossier, dict) else None
 
     def delete_owner(self, owner_id: str) -> None:
         with self._connection() as conn:

@@ -73,7 +73,8 @@ class TestQdrantMemoryAgent:
             timestamp=12.5,
             timestamp_str="00:12",
             topic="security",
-            urgency="high"
+            urgency="high",
+            uid="default_user",
         )
         assert point_id is not None
         assert isinstance(point_id, str)
@@ -88,17 +89,19 @@ class TestQdrantMemoryAgent:
             speaker="Marcus (DBA)",
             text="PostgreSQL primary database failover was completed in 40 seconds.",
             timestamp=10.0,
-            timestamp_str="00:10"
+            timestamp_str="00:10",
+            uid="default_user",
         )
         memory_agent.index_utterance(
             session_id="s1",
             speaker="Elena (DevOps)",
             text="Frontend CDN cache invalidation was purged successfully.",
             timestamp=20.0,
-            timestamp_str="00:20"
+            timestamp_str="00:20",
+            uid="default_user",
         )
 
-        results = memory_agent.search_memory("How long did PostgreSQL database failover take?")
+        results = memory_agent.search_memory("How long did PostgreSQL database failover take?", uid="default_user")
         assert len(results) > 0
         top = results[0]
         assert top["speaker"] == "Marcus (DBA)"
@@ -106,15 +109,15 @@ class TestQdrantMemoryAgent:
         assert top["score"] > 0.0
 
     def test_search_with_speaker_filter(self, memory_agent):
-        memory_agent.index_utterance("s2", "David", "Budget is approved.", 5.0, "00:05", "finance")
-        memory_agent.index_utterance("s2", "Sarah", "Budget is under review.", 15.0, "00:15", "finance")
+        memory_agent.index_utterance("s2", "David", "Budget is approved.", 5.0, "00:05", "finance", uid="default_user")
+        memory_agent.index_utterance("s2", "Sarah", "Budget is under review.", 15.0, "00:15", "finance", uid="default_user")
 
-        results = memory_agent.search_memory("budget", speaker="Sarah")
+        results = memory_agent.search_memory("budget", speaker="Sarah", uid="default_user")
         for match in results:
             assert match["speaker"] == "Sarah"
 
     def test_search_empty_query_returns_empty_or_low_score(self, memory_agent):
-        results = memory_agent.search_memory("")
+        results = memory_agent.search_memory("", uid="default_user")
         assert isinstance(results, list)
 
     def test_qdrant_cloud_connection_fallback(self):
@@ -201,26 +204,26 @@ class TestQdrantMemoryAgent:
         memory_agent.persistence_mode = "in_memory"
 
     def test_search_with_topic_filter(self, memory_agent):
-        memory_agent.index_utterance("s3", "Alice", "Security audit report ready", 1.0, "00:01", topic="security")
-        memory_agent.index_utterance("s3", "Bob", "New logo design preview", 2.0, "00:02", topic="design")
-        results = memory_agent.search_memory("audit", topic="security")
+        memory_agent.index_utterance("s3", "Alice", "Security audit report ready", 1.0, "00:01", topic="security", uid="default_user")
+        memory_agent.index_utterance("s3", "Bob", "New logo design preview", 2.0, "00:02", topic="design", uid="default_user")
+        results = memory_agent.search_memory("audit", topic="security", uid="default_user")
         assert len(results) >= 1
         assert results[0]["topic"] == "security"
 
     def test_delete_memory_by_point_id_and_session(self, memory_agent):
-        p_id = memory_agent.index_utterance("s_del", "Charlie", "Confidential text", 1.0, "00:01")
+        p_id = memory_agent.index_utterance("s_del", "Charlie", "Confidential text", 1.0, "00:01", uid="default_user")
         # Delete by int point_id
-        res_int = memory_agent.delete_memory(point_id=int(p_id))
+        res_int = memory_agent.delete_memory(point_id=int(p_id), uid="default_user")
         assert res_int is True
 
         # Index and delete by session_id
-        memory_agent.index_utterance("s_del2", "Charlie", "Another confidential note", 2.0, "00:02")
-        res_sess = memory_agent.delete_memory(session_id="s_del2")
+        memory_agent.index_utterance("s_del2", "Charlie", "Another confidential note", 2.0, "00:02", uid="default_user")
+        res_sess = memory_agent.delete_memory(session_id="s_del2", uid="default_user")
         assert res_sess is True
 
         # Delete with exception returns False
         with patch.object(memory_agent.client, "delete", side_effect=Exception("Qdrant unavailable")):
-            res_fail = memory_agent.delete_memory(point_id=p_id)
+            res_fail = memory_agent.delete_memory(point_id=p_id, uid="default_user")
             assert res_fail is False
 
     def test_ensure_collection_fails_closed_on_dimension_mismatch(self, memory_agent):

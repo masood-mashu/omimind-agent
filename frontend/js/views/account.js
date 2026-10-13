@@ -2,8 +2,8 @@ import { authorizedFetch } from '../api.js';
 import { getSession, signOut } from '../supabase.js';
 
 export async function renderAccount(container) {
-  let userEmail = 'masoodmashu823@gmail.com';
-  let userId = 'f7550f35-5d54-442e-b1ec-b3806b1a7c81';
+  let userEmail = 'Not available';
+  let userId = 'Not available';
 
   try {
     const { session } = await getSession();
@@ -34,11 +34,11 @@ export async function renderAccount(container) {
         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div class="p-3.5 rounded-xl bg-slate-900/60 border border-white/5">
             <div class="text-[11px] font-mono-tech text-slate-500 uppercase">Authenticated Email</div>
-            <div class="mt-1 text-sm font-semibold text-slate-200 break-all">${userEmail}</div>
+            <div class="mt-1 text-sm font-semibold text-slate-200 break-all">${escapeHtml(userEmail)}</div>
           </div>
           <div class="p-3.5 rounded-xl bg-slate-900/60 border border-white/5">
             <div class="text-[11px] font-mono-tech text-slate-500 uppercase">Account UUID</div>
-            <div class="mt-1 text-xs font-mono-tech text-cyan-300 break-all">${userId}</div>
+            <div class="mt-1 text-xs font-mono-tech text-cyan-300 break-all">${escapeHtml(userId)}</div>
           </div>
         </div>
       </section>
@@ -84,12 +84,6 @@ export async function renderAccount(container) {
     </div>
   `;
 
-  document.getElementById('btn-account-signout')?.addEventListener('click', async () => {
-    await signOut();
-    window.location.hash = '';
-    window.location.reload();
-  });
-
   document.getElementById('delete-account')?.addEventListener('click', async () => {
     if (!window.confirm('Delete your OMIMIND account and all workspace data?')) return;
     const response = await authorizedFetch('/api/account', { method: 'DELETE' });
@@ -98,4 +92,10 @@ export async function renderAccount(container) {
     window.location.hash = '';
     window.location.reload();
   });
+}
+
+function escapeHtml(value) {
+  return String(value ?? '').replace(/[&<>"']/g, (char) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+  }[char]));
 }

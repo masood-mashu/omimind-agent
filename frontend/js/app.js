@@ -317,7 +317,7 @@ function renderLanding() {
               </div>
             </div>
             <p class="text-xs sm:text-sm text-slate-400 leading-relaxed">
-              Utterances are vectorized into dense 384-dimensional embeddings via FastEmbed and stored securely in Qdrant Cloud. Lyzr Agent Studio swarms analyze transcripts with user-controlled review before any Jira ticket or email is drafted. All webhook payloads support HMAC-SHA256 signature verification and replay prevention.
+              Utterances are vectorized into dense 384-dimensional embeddings with the configured provider and stored securely in Qdrant. Lyzr Agent Studio swarms analyze transcripts with user-controlled review before any Jira ticket or email is drafted. Signed webhook routes verify timestamps and request signatures; paired connection routes use per-device tokens.
             </p>
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-2 text-xs font-mono-tech text-slate-400">
               <div class="p-2.5 rounded-lg bg-black/30 border border-white/5">
