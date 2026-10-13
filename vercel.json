@@ -3,11 +3,7 @@
   "functions": {
     "api/index.py": {
       "maxDuration": 300,
-      "includeFiles": [
-        "agents/**",
-        "backend/**",
-        "frontend/**"
-      ]
+      "includeFiles": "{agents,backend,frontend}/**"
     }
   },
   "routes": [
